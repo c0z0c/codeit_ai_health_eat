@@ -887,12 +887,14 @@ class AIHubShell:
         
         return result
 
-import zipfile
-from tqdm import tqdm
-def unzip(zipfile_list):
+def unzip(zipfile_list, remove_zip=False):
+    import zipfile
+    from tqdm import tqdm
+    unzip_paths = []
     for zip_path in zipfile_list:
         if os.path.exists(zip_path) and os.path.isfile(zip_path):
             extract_dir = zip_path + ".unzip"
+            unzip_paths.append(extract_dir)
             if not os.path.exists(extract_dir):
                 os.makedirs(extract_dir, exist_ok=True)
                 with zipfile.ZipFile(zip_path, 'r') as zip_ref:
@@ -903,11 +905,11 @@ def unzip(zipfile_list):
             else:
                 print(f"이미 압축 해제됨: {extract_dir}")
             try:
-                os.remove(zip_path)
+                if remove_zip:
+                    os.remove(zip_path)
             except FileNotFoundError as e:
                 print(f"파일이 없음 {e} : {zip_path}")
-                pass
         else:
             print(f"존재하지 않은 파일: {zip_path}")
-
+    return unzip_paths
 ################################################################################################################
