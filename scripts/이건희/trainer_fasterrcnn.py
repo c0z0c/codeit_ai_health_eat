@@ -153,20 +153,21 @@ def main(args):
     train_dataset = CustomCocoDataset(
         image_dir=args.train_image_dir,
         annotation_file=args.train_annotation_path,
+        id2label_path=args.id2label_path,
         transforms=get_transforms(train=True)
     )
 
     val_dataset = CustomCocoDataset(
         image_dir=args.valid_image_dir,
         annotation_file=args.valid_annotation_path,
+        id2label_path=args.id2label_path,
         transforms=get_transforms(train=False)
     )
 
     # 클래스 수 설정 (훈련 데이터셋 기준)
     args.num_classes = train_dataset.num_total_classes
-    print(train_dataset.original_id_to_sequential_label)
     print(f"Number of classes (including background): {args.num_classes}")
-    print(f"Class mapping: {train_dataset.sequential_label_to_original_name}")
+    # print(f"Class mapping: {train_dataset.sequential_label_to_original_name}")
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
@@ -281,10 +282,11 @@ if __name__ == "__main__":
             self.train_annotation_path = "./data/labels/train/train.json"                       # 훈련 어노테이션 파일
             self.valid_annotation_path = "./data/labels/val/valid.json"                         # 검증 어노테이션 파일
             self.checkpoint_dir = "./checkpoints"                                               # checkpoint 모델 경로
+            self.id2label_path = './data/id2label.json'
 
             # Training parameters
             self.batch_size = 4                                                                 # 배치 크기
-            self.num_epochs = 11                                                                # 에포크 수
+            self.num_epochs = 3                                                                 # 에포크 수
             self.learning_rate = 0.005                                                          # 학습률
             self.weight_decay = 0.0005                                                          # 학습률 변화
             self.momentum = 0.9                                                                 # 모멘텀

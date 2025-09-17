@@ -123,12 +123,12 @@ def main():
     if model_name == 'fasterrcnn':
         args = Args_rcnn()
         args.model_name = 'CustomFasterRCNN'
-        ssd_trainer.main(args)
+        trainer_fasterrcnn.main(args)
 
     elif model_name == 'yolo':
         args = Args_yolo()
         args.model_name = 'yolov8n.pt'
-        yolo_trainer.main(args)
+        trainer_yolo.main(args)
     # print(f'사용중인 모델 명 : {args.model_name}')
 
 if __name__ == "__main__":
