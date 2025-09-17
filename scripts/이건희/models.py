@@ -6,16 +6,15 @@ from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights  # weig
 def get_model(model_name, num_classes):
     """모델 이름에 따라 해당하는 모델 클래스의 인스턴스를 반환합니다. [사용가능한 모델명 : 'CustomFasterRCNN', '']
     """
+    lower_model_name = str.lower(model_name)
     model_zoo = {
-        "CustomFasterRCNN": CustomFasterRCNN,
-        # 여기에 새로운 모델 클래스를 추가하면 됩니다.
-        # "CustomYOLOv8": CustomYOLOv8,
+        "customfasterrcnn": CustomFasterRCNN,
     }
 
-    if model_name not in model_zoo:
+    if lower_model_name not in model_zoo:
         raise ValueError(f"지원하지 않는 모델 이름입니다: {model_name}")
 
-    model_class = model_zoo[model_name]
+    model_class = model_zoo[lower_model_name]
     return model_class(num_classes)
 
 

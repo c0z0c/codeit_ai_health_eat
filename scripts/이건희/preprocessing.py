@@ -176,7 +176,7 @@ def coco2yolo(json_path, output_dir, label_change_dict, train=True):
     image_ids = coco.getImgIds()
 
     print(f"총 {len(image_ids)}개의 이미지를 변환합니다.")
-
+    print(json_path)
     # 각 이미지를 순회하며 YOLO 파일 생성
     for img_id in image_ids:
         img_info = coco.loadImgs(img_id)[0]
@@ -195,6 +195,9 @@ def coco2yolo(json_path, output_dir, label_change_dict, train=True):
             # print(category_id)
             label = label_change_dict[str(category_id)]
             bbox = anno['bbox']
+            print(bbox)
+            if not bbox:
+                continue
             # YOLO 좌표로 변환 (정규화된 중심점과 너비/높이)
             x_center = (bbox[0] + bbox[2] / 2) / img_width
             y_center = (bbox[1] + bbox[3] / 2) / img_height
@@ -303,7 +306,7 @@ if __name__ == "__main__":
 
 
     args = Args()
-
+    #
 
     group_and_split_annotations(annotations_dir=args.source_json_dir,output_dir=args.output_json_dir, split_ratio=0.8)
     copy_images_from_jsons(json_dir=args.output_json_dir, source_images_dir=args.source_images_dir, output_images_dir= args.output_images_dir, image_name_key= 'file_name')
