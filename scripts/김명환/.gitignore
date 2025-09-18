@@ -5,3 +5,5 @@
 /debug_*
 /submission_*
 /wandb
+/__pycache__
+/fonts
