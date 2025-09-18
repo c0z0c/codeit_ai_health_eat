@@ -30,7 +30,7 @@ def main(args):
                           # device=args.device)
     print("학습 완료! best.pt 저장 위치:", model.ckpt_path)
 
-    # # 학습된 모델 불러오기
+    # 학습된 모델 불러오기
     # trained_model = YOLO("./runs/detect/train/weights/best.pt")
     #
     # # 추론 실행
@@ -39,13 +39,13 @@ def main(args):
     #     save=True,  # 결과 이미지 저장
     #     conf=0.5  # confidence threshold
     # )
-
+    #
     # # 결과 확인
     # for r in results:
     #     print(r.boxes.xyxy)  # 감지된 박스 좌표
     #     print(r.boxes.conf)  # confidence 값
     #     print(r.boxes.cls)  # 클래스 ID
 
-if __name__ == "__main__":
-    args = Args()
-    main(args)
+# if __name__ == "__main__":
+#     args = Args()
+#     main(args)

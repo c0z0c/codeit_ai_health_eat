@@ -42,6 +42,7 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
     running_loss = 0.0
 
     for batch_idx, (images, targets) in enumerate(tqdm(data_loader, desc=f"Epoch {epoch}", leave=False)):
+        # print(images, targets)
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
@@ -152,19 +153,21 @@ def main(args):
     train_dataset = CustomCocoDataset(
         image_dir=args.train_image_dir,
         annotation_file=args.train_annotation_path,
+        id2label_path=args.id2label_path,
         transforms=get_transforms(train=True)
     )
 
     val_dataset = CustomCocoDataset(
         image_dir=args.valid_image_dir,
         annotation_file=args.valid_annotation_path,
+        id2label_path=args.id2label_path,
         transforms=get_transforms(train=False)
     )
 
     # 클래스 수 설정 (훈련 데이터셋 기준)
     args.num_classes = train_dataset.num_total_classes
     print(f"Number of classes (including background): {args.num_classes}")
-    print(f"Class mapping: {train_dataset.sequential_label_to_original_name}")
+    # print(f"Class mapping: {train_dataset.sequential_label_to_original_name}")
 
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Validation dataset size: {len(val_dataset)}")
@@ -205,7 +208,6 @@ def main(args):
         step_size=args.step_size,
         gamma=args.gamma
     )
-
     # 체크포인트 로드 (재개 학습)
     start_epoch = 0
     if args.resume and args.checkpoint_path and os.path.exists(args.checkpoint_path):
@@ -258,7 +260,7 @@ def main(args):
     plt.grid(True)
 
     plt.tight_layout()
-    plt.savefig(os.path.join(args.checkpoint_dir, args.model_name, 'training_curves.png'))
+    plt.savefig(os.path.join(args.checkpoint_dir, 'training_curves.png'))
     plt.show()
 
     # 샘플 예측 시각화
@@ -272,5 +274,60 @@ def main(args):
 
 
 if __name__ == "__main__":
-    args = Args()
+    class Args_rcnn:
+        def __init__(self):
+            # Data paths - 새로운 구조에 맞게 수정
+            self.train_image_dir = "./data/images/train"                                        # 훈련 이미지 폴더
+            self.valid_image_dir = "./data/images/val"                                          # 검증 이미지 폴더
+            self.train_annotation_path = "./data/labels/train/train.json"                       # 훈련 어노테이션 파일
+            self.valid_annotation_path = "./data/labels/val/valid.json"                         # 검증 어노테이션 파일
+            self.checkpoint_dir = "./checkpoints"                                               # checkpoint 모델 경로
+            self.id2label_path = './data/id2label.json'
+
+            # Training parameters
+            self.batch_size = 4                                                                 # 배치 크기
+            self.num_epochs = 3                                                                 # 에포크 수
+            self.learning_rate = 0.005                                                          # 학습률
+            self.weight_decay = 0.0005                                                          # 학습률 변화
+            self.momentum = 0.9                                                                 # 모멘텀
+            self.step_size = 3
+            self.gamma = 0.1
+
+            # Model parameters
+            self.num_classes = None                                                             # dataset에서 자동으로 결정, 손수 결정할 때만 입력
+            self.model_name = 'CustomFasterRCNN'  # ['Yolov#', 'CustomFasterRCNN', ]
+
+            # Training settings
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"  # 디바이스 설정
+            self.num_workers = 4                                                                # Dataloader의 num_worker 수 설정
+            self.print_freq = 10                                                                # 얼마마다 loss 프린트 할 것인지
+            self.save_freq = 1                                                                  # 체크포인트를 몇 epoch마다 저장할 것인지
+
+            # Resume training
+            # 중간에 학습 멈추고 다시 시작할때, checkpoint 불러오는 설정
+            self.resume = False                                                               # False는 안불러옴 - 처음부터 학습함(대신 이전에 학습해서 checkpoint있으면, 덮어씀.
+            self.checkpoint_path = None
+            # self.resume = True                                                                  # True는 불러옴
+            # self.checkpoint_path = './checkpoints/CustomFasterRCNN/checkpoint_epoch_10.pth'     # 불러올 checkpoint 경로
+
+            # Validation - 이제 별도 파일로 제공되므로 필요없음
+            # self.val_split = 0.2
+
+            # Visualization
+            self.visualize_predictions = True                                                   # validation 이미지 보여 주는가
+            self.vis_num_samples = 5                                                            # 이미지 갯수
+
+            # WandB settings
+            self.use_wandb = True                                                               # wandb 연결
+            self.wandb_project = "object-detection"
+            self.wandb_entity = 'AI-team4'
+            self.wandb_run_name = None                                                          # None으로 설정되면 아무렇게나 자동으로 저장됨
+
+            # Evaluation settings
+            self.eval_freq = 1                                                                  # 몇 epoch마다 평가하나
+            self.confidence_threshold = 0.5                                                     # classification된 박스를 제거하는 기준
+            self.nms_threshold = 0.5                                                            # IoU를 기준으로 박스를 제거하는 기준
+
+
+    args = Args_rcnn()
     main(args)

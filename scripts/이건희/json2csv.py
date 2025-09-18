@@ -7,7 +7,7 @@ import pandas as pd
 #
 #     df1 = pd.read_json(anno)
 
-df = pd.read_json('./predictions/test_predictions.json', encoding='utf-8', orient='records')
+df = pd.read_json('./data/test.json', encoding='utf-8', orient='records')
 print(df.head())
 
 bbox_expanded = df['bbox'].apply(pd.Series)
@@ -16,14 +16,14 @@ bbox_expanded.columns = ['bbox_x', 'bbox_y', 'bbox_w', 'bbox_h']
 
 df_final = pd.concat([df, bbox_expanded], axis=1)
 
-df_final = df_final.drop(['bbox','category_name'], axis=1)
+df_final = df_final.drop(['bbox'], axis=1)
 df_final['annotation_id'] = df_final.index + 1
 df_final = df_final[['annotation_id', 'image_id', 'category_id', 'bbox_x', 'bbox_y', 'bbox_w', 'bbox_h', 'score']]
 
 print(df_final.head())
 
 # CSV 파일로 저장할 경로 및 이름 지정
-output_csv_file_path = "output_data.csv"
+output_csv_file_path = "./data/output_data_add_data.csv"
 
 try:
     # to_csv() 메서드를 사용하여 DataFrame을 CSV 파일로 저장합니다.

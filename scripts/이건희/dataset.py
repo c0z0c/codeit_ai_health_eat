@@ -10,7 +10,7 @@ import random
 import yaml
 
 class CustomCocoDataset(Dataset):
-    def __init__(self, image_dir, annotation_file, transforms=None):
+    def __init__(self, image_dir, annotation_file, id2label_path, transforms=None):
         '''
         :param image_dir: image 폴더 경로
         :param annotation_file: 전체 annotation 파일(merged_annotation 경로)
@@ -27,28 +27,12 @@ class CustomCocoDataset(Dataset):
             print(f"오류: 어노테이션 파일 로드 중 문제가 발생했습니다: {e}")
             # 오류가 발생하면 프로그램을 종료하거나 적절히 처리해야 합니다.
         # self.coco = COCO(annotation_file)                   # 전체 annotation 파일(merged_annotation) 불러오기
-        self.ids = list(sorted(self.coco.imgs.keys()))      #
+        self.ids = list(sorted(self.coco.imgs.keys()))      # 이미지id 집합해서 정렬함.
+        # 2. id2label.json 파일 로드
+        with open(id2label_path, 'r', encoding='utf-8') as f:
+            self.id2label = json.load(f)
 
-        self.original_id_to_sequential_label = {}  # 원본 ID -> 새로운 (1부터 시작하는) 순차적 레이블
-        self.sequential_label_to_original_name = {}  # 새로운 순차적 레이블 -> 원본 이름
-
-        sorted_original_category_ids = sorted(self.coco.cats.keys())
-
-        sequential_label_counter = 1
-
-        for original_cat_id in sorted_original_category_ids:
-            original_cat_name = self.coco.cats[original_cat_id]['name']
-
-            self.original_id_to_sequential_label[original_cat_id] = sequential_label_counter
-            self.sequential_label_to_original_name[sequential_label_counter] = original_cat_name
-
-            sequential_label_counter += 1
-
-        # 총 클래스 개수는 실제 객체 클래스 수 (sequential_label_counter - 1) + 배경 클래스 (1)
-        self.num_total_classes = sequential_label_counter
-
-        # print(f"데이터셋에 총 {self.num_total_classes - 1}개의 실제 객체 클래스가 매핑되었습니다.")
-        # print(f"새로운 레이블 매핑 (새 레이블 -> 원본 이름): {self.sequential_label_to_original_name}")
+        self.num_total_classes = len(self.id2label) + 1
 
     def __len__(self):
         return len(self.ids)
@@ -61,7 +45,11 @@ class CustomCocoDataset(Dataset):
 
         # 이미지 로드
         path = coco.loadImgs(img_id)[0]['file_name']
-        img = Image.open(os.path.join(self.image_dir, path)).convert('RGB')
+        img_path = os.path.join(self.image_dir, path)
+        if not os.path.exists(img_path):
+            # 이미지가 없으면 None 반환하거나 스킵
+            return None
+        img = Image.open(img_path).convert('RGB')
 
         temp_boxes = []
         temp_labels = []
@@ -76,8 +64,16 @@ class CustomCocoDataset(Dataset):
             # --- 원본 category_id를 새로운 순차적 레이블로 변환 ---
             original_category_id = coco_anns[i]['category_id']
             # 매핑된 레이블을 가져오거나, 매핑되지 않은 경우 0 (배경)으로 처리합니다.
-            mapped_label = self.original_id_to_sequential_label.get(original_category_id, 0)
-            temp_labels.append(mapped_label)
+            # print(original_category_id)
+            label_info = self.id2label.get(str(original_category_id), -1)
+            # print(label_info, original_category_id)
+            sequential_label = label_info + 1
+            # else:
+                # sequential_label = 0
+
+            temp_labels.append(sequential_label)
+
+            # mapped_label = self.original_id_to_sequential_label.get(original_category_id, 0)
 
             # 실제 boxes와 labels에 할당
             # 만약 temp_boxes가 비어있다면, 모델 학습 시 오류를 방지하기 위해 더미 값을 추가합니다.
@@ -109,14 +105,24 @@ class CustomCocoDataset(Dataset):
         return img, target
 
 
+# def custom_collate_fn(batch):
+#     images = []
+#     targets = []
+#     for image, target in batch:
+#         images.append(image)
+#         targets.append(target)
+#
+#     return images, targets          # 이미지와 타겟 딕셔너리들을 각각 리스트로 반환
 def custom_collate_fn(batch):
-    images = []
-    targets = []
-    for image, target in batch:
-        images.append(image)
-        targets.append(target)
+    # None 샘플 제거
+    batch = [b for b in batch if b is not None]
 
-    return images, targets          # 이미지와 타겟 딕셔너리들을 각각 리스트로 반환
+    # 전부 None인 경우 → skip할 수 있도록 None 반환
+    if len(batch) == 0:
+        return None
+
+    images, targets = zip(*batch)  # unpack 가능
+    return list(images), list(targets)
 
 ''' 기존데이터 분할'''
 

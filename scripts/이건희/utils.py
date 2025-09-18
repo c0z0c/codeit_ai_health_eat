@@ -163,8 +163,8 @@ def visualize_prediction(image, prediction, classes, target=None):
                 fontsize=10,
                 bbox=dict(facecolor="white", alpha=0.7),
             )
-        plt.axis("off")
-        plt.show()
+    plt.axis("off")
+    plt.show()
 
 
 # def create_class_mapping(input_json_path, output_json_path):
