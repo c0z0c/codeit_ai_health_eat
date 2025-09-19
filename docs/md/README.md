@@ -24,15 +24,15 @@ pragma: no-cache
 ### 1.2. 핵심 기능
 ```mermaid
 graph LR
-    A["이미지 입력"] --> B["알약 검출<br/>(YOLO v8)"]
-    B --> C["알약 분류<br/>(EfficientNet-B3)"]
+    A["이미지 입력"] --> B["알약 검출<br/>(탐지)"]
+    B --> C["알약 분류<br/>(분류)"]
     C --> D["검증 및 신뢰도"]
     D --> E["헬스케어 정보"]
     E --> F["결과 출력"]
 ```
 
 - **다중 객체 탐지**: 한 이미지에서 최대 4개 알약 동시 인식
-- **정확한 분류**: EfficientNet-B3 기반 고정밀 약물 분류
+- **정확한 분류**: 분류 기반 고정밀 약물 분류
 - **위치 정보**: 바운딩 박스를 통한 정확한 위치 표시
 - **신뢰도 검증**: 다단계 검증을 통한 결과 신뢰성 확보
 - **안전성 정보**: 약물 상호작용 및 주의사항 제공
@@ -57,8 +57,8 @@ graph TD
     DE --> DE1["EDA 및 데이터 분석"]
     DE --> DE2["전처리 파이프라인"]
     
-    MA --> MA1["YOLO v8 구현"]
-    MA --> MA2["EfficientNet-B3 설계"]
+    MA --> MA1["탐지 구현"]
+    MA --> MA2["분류 설계"]
     
     EL --> EL1["하이퍼파라미터 튜닝"]
     EL --> EL2["Kaggle 제출 관리"]
@@ -73,7 +73,7 @@ graph TD
 |------|--------|-----------|---------------|
 | **Project Manager** | 이건희 | 프로젝트 총괄 관리, 일정 조율 | 전 주차: 팀 조율, 진행상황 체크 |
 | **Data Engineer** | 서동일 | EDA, 데이터 전처리, 증강 기법 | 1주차: EDA 완료, 2주차: 파이프라인 구축 |
-| **Model Architect** | 김명환 | YOLO v8 + EfficientNet-B3 설계 | 1-2주차: 모델 구현, 3주차: 최적화 |
+| **Model Architect** | 김명환 | 탐지 + 분류 설계 | 1-2주차: 모델 구현, 3주차: 최적화 |
 | **Experimentation Lead** | 김민혁 | 실험 설계, Kaggle 제출, 성능 튜닝 | 2주차: 실험 시작, 3주차: 최종 튜닝 |
 | **Quality Assurance** | 이현재 | 코드 품질, 문서화, 결과 검증 | 전 주차: 지속적 품질 관리 |
 
@@ -88,14 +88,14 @@ graph TD
     end
     
     subgraph "Stage 1: 객체 탐지"
-        B["YOLO v8 모델"]
+        B["탐지 모델"]
         B1["바운딩 박스 추출<br/>[x1,y1,x2,y2] × 최대4개"]
         B2["검출 신뢰도<br/>0.0 ~ 1.0"]
     end
     
     subgraph "Stage 2: 알약 분류"
         C["이미지 크롭핑<br/>224×224"]
-        D["EfficientNet-B3"]
+        D["분류"]
         D1["Top-3 분류 결과"]
         D2["클래스별 확률"]
     end
@@ -145,7 +145,7 @@ flowchart TD
         A["원본 이미지<br/>H×W×3<br/>RGB 컬러"]
     end
     
-    subgraph Detection["객체 탐지 (YOLO v8)"]
+    subgraph Detection["객체 탐지 (탐지)"]
         direction LR
 
         B["이미지 리사이즈<br/>640×640"]
@@ -154,7 +154,7 @@ flowchart TD
         E["Detection Head<br/>바운딩박스 + 클래스 + 신뢰도"]
     end
     
-    subgraph Classification["분류 (EfficientNet-B3)"]
+    subgraph Classification["분류 (분류)"]
         direction LR
 
         F["박스별 이미지 크롭<br/>224×224"]
@@ -191,7 +191,7 @@ flowchart TD
 
 ### 3.3. 핵심 모델 사양
 
-#### YOLO v8 객체 탐지 모델
+#### 탐지 객체 탐지 모델
 ```yaml
 YOLO_v8_Config:
   입력_크기: 640×640×3
@@ -204,7 +204,7 @@ YOLO_v8_Config:
   클래스: "pill" (단일 클래스)
 ```
 
-#### EfficientNet-B3 분류 모델
+#### 분류 분류 모델
 ```yaml
 EfficientNet_B3_Config:
   입력_크기: 224×224×3
@@ -245,7 +245,7 @@ gantt
     프로젝트 킥오프    :milestone, kick, 2025-09-09, 0d
     환경설정 및 EDA     :setup, 2025-09-09, 2025-09-11
     데이터 전처리      :preprocess, 2025-09-11, 2025-09-13
-    YOLO v8 구현 시작  :yolo-start, 2025-09-12, 2025-09-13   
+    탐지 구현 시작  :yolo-start, 2025-09-12, 2025-09-13   
 ```
 
 ```mermaid
@@ -254,7 +254,7 @@ gantt
     axisFormat %m/%d
         
     section 2주차 (9/16~9/20)
-    YOLO v8 학습      :yolo-train, 2025-09-16, 2025-09-18
+    탐지 학습      :yolo-train, 2025-09-16, 2025-09-18
     중간점검(발표)  :efficient, 2025-09-17, 2025-09-19
     EfficientNet 구현  :efficient, 2025-09-17, 2025-09-19
     파이프라인 통합    :integrate, 2025-09-19, 2025-09-20
@@ -280,23 +280,23 @@ gantt
 | **9/9 (화)** | 이건희| 프로젝트 킥오프, 역할 분담 확정 | 역할분담표, GitHub 세팅 |
 | **9/10 (수)** | 서동일 | 데이터 EDA, 분포 분석 | EDA 노트북, 데이터 품질 리포트 |
 | **9/11 (목)** | 이건희 | 전처리 파이프라인 구축 | preprocessing.py, augmentation.py |
-| **9/12 (금)** | 이건희 | YOLO v8 환경 구축, 베이스라인 | yolo_detector.py 초기 버전 |
+| **9/12 (금)** | 이건희 | 탐지 환경 구축, 베이스라인 | yolo_detector.py 초기 버전 |
 
 #### 2주차 (9/15 ~ 9/19): 모델 구현 및 통합
 | 날짜 | 주 담당자 | 핵심 업무 | 예상 산출물 |
 |------|-----------|-----------|-------------|
 | **9/15 (월)** | 전원 | 1주차 결과 공유, 2주차 계획 수립 | 주간 회의록, 다음주 계획 |
-| **9/16 (화)** | ㅇㅇㅇ | YOLO v8 본격 학습 시작 | 학습 스크립트, 첫 번째 체크포인트 |
-| **9/17 (수)** | ㅇㅇㅇ | **중간발표** EfficientNet-B3 구현 및 학습 | efficientnet_classifier.py |
-| **9/18 (목)** | ㅇㅇㅇ | 두 모델 통합, 파이프라인 구축 | inference_pipeline.py |
-| **9/19 (금)** | ㅇㅇㅇ | 성능 평가, 첫 실험 결과 | 성능 리포트, 실험 로그 |
+| **9/16 (화)** | 김민혁 | 탐지 본격 학습 시작 | 학습 스크립트, 첫 번째 체크포인트 |
+| **9/17 (수)** | 이건희 | **중간발표** 분류 구현 및 학습 | efficientnet_classifier.py |
+| **9/18 (목)** | 김명환 | 두 모델 통합, 파이프라인 구축 | inference_pipeline.py |
+| **9/19 (금)** | 전원 | 성능 평가, 첫 실험 결과 | 성능 리포트, 실험 로그 |
 
 #### 3주차 (9/22 ~ 9/26): 최적화 및 마무리
 | 날짜 | 주 담당자 | 핵심 업무 | 예상 산출물 |
 |------|-----------|-----------|-------------|
-| **9/22 (월)** | ㅇㅇㅇ | **첫 Kaggle 제출** | submission_v1.csv, 제출 결과 |
-| **9/23 (화)** | ㅇㅇㅇ | 하이퍼파라미터 튜닝, 앙상블 시도 | 튜닝 결과, 성능 개선 리포트 |
-| **9/24 (수)** | ㅇㅇㅇ | 최종 코드 검증, 문서화 완료 | 최종 README, 코드 리뷰 완료 |
+| **9/22 (월)** | 이건희 | **첫 Kaggle 제출** | submission_v1.csv, 제출 결과 |
+| **9/23 (화)** | 김민혁 | 하이퍼파라미터 튜닝, 앙상블 시도 | 튜닝 결과, 성능 개선 리포트 |
+| **9/24 (수)** | 전원 | 최종 코드 검증, 문서화 완료 | 최종 README, 코드 리뷰 완료 |
 | **9/25 (목)** | 전원 | **최종 발표** | 발표자료, 최종 보고서 |
 | **9/26 (금)** | | | |
 
@@ -373,8 +373,8 @@ graph LR
 #### 모델별 목표 성능
 | 모델 구성 | mAP＠0.5 | Precision | Recall | F1-Score | 추론시간 |
 |-----------|---------|-----------|--------|----------|----------|
-| **YOLO v8 + EfficientNet-B3** | **>0.75** | **>0.80** | **>0.75** | **>0.77** | **<2.0초** |
-| YOLO v8 단독 | >0.65 | >0.70 | >0.65 | >0.67 | <1.0초 |
+| **탐지 + 분류** | **>0.75** | **>0.80** | **>0.75** | **>0.77** | **<2.0초** |
+| 탐지 단독 | >0.65 | >0.70 | >0.65 | >0.67 | <1.0초 |
 | 베이스라인 (사전훈련) | >0.50 | >0.60 | >0.55 | >0.57 | <3.0초 |
 
 ### 5.3. 예상 출력 형식
@@ -481,7 +481,7 @@ flowchart TD
     A["main: Initial setup"] --> B["develop: Dev environment"]
     
     B --> C["feature/yolo-implementation"]
-    C --> C1["YOLO v8 implementation"]
+    C --> C1["탐지 implementation"]
     C1 --> C2["YOLO training script"]
     C2 --> D["merge to develop"]
     
@@ -638,7 +638,7 @@ graph LR
 experiments:
   exp_001:
     date: "2025-09-20"
-    model: "YOLO v8s + EfficientNet-B3"
+    model: "탐지s + 분류"
     hyperparameters:
       yolo_lr: 0.01
       efficientnet_lr: 0.001
@@ -739,7 +739,7 @@ gantt
 - 우리의 해결 접근법
 
 **3. 기술 아키텍처 (4분) - 김명환**
-- YOLO v8 + EfficientNet-B3 파이프라인
+- 탐지 + 분류 파이프라인
 - 모델 선택 이유 및 최적화 과정
 - 시스템 구조도
 
@@ -779,7 +779,7 @@ graph LR
     C --> C2["코드 리뷰 완료"]
     C --> C3["문서화 95%+"]
     
-    D["학습 성과"] --> D1["YOLO v8 완전 이해"]
+    D["학습 성과"] --> D1["탐지 완전 이해"]
     D --> D2["EfficientNet 활용"]
     D --> D3["MLOps 파이프라인"]
 ```
@@ -863,7 +863,7 @@ graph LR
 
 ### 11.1. 주요 참고 문헌
 
-**YOLO v8 관련**
+**탐지 관련**
 - Ultralytics YOLOv8 Documentation
 - "You Only Look Once: Unified, Real-Time Object Detection" (Redmon et al.)
 - YOLOv8 GitHub Repository
@@ -975,7 +975,7 @@ SOFTWARE.
 | MLOps | Machine Learning Operations | 머신러닝 모델의 개발, 배포, 운영을 체계화하는 방법론 |
 | 모델 드리프트 | Model Drift | 시간이 지나면서 모델 성능이 저하되는 현상 |
 | CSP다크넷 | CSPDarknet | Cross Stage Partial Darknet, YOLO의 백본 네트워크 |
-| PANet | Path Aggregation Network | YOLO v8의 넥 구조, 다중 스케일 특징 융합 |
+| PANet | Path Aggregation Network | 탐지의 넥 구조, 다중 스케일 특징 융합 |
 | MBConv | Mobile Inverted Bottleneck Convolution | EfficientNet의 기본 블록 구조 |
 | 글로벌 평균 풀링 | Global Average Pooling | 특징맵을 평균값으로 요약하는 기법 |
 | 소프트맥스 | Softmax | 확률 분포로 변환하는 활성화 함수 |
