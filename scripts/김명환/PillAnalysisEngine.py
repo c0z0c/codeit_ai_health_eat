@@ -68,8 +68,8 @@ class PillAnalysisEngine:
             
         self.database = self.init_database() # DB 초기화 클래스 개수 확인을 위하여 가장 먼저 로딩되어야함.
         self.model_1_stage = self.load_1_stage_model()
-        self.model_2_stage = self.load_2_stage_model_resnet152()
-        # self.model_2_stage = self.load_2_stage_model_efficientnet_b3()  # EfficientNet 사용
+        self.model_2_stage = self.load_2_stage_model_resnet()
+        #self.model_2_stage = self.load_2_stage_model_efficientnet_b3()
     
         self.transform = transforms.Compose([
             transforms.Resize(224),           # 짧은 변 기준 224로 리사이즈 (비율 유지)
@@ -413,11 +413,15 @@ class PillAnalysisEngine:
         return json_str
 
     def init_database(self):
-        df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug.pkl"))
+        #df_drug_116
+        #df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug.pkl"))
+        df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug_116.pkl"))
         df_interaction = pd.read_pickle(os.path.join(self.data_path, "df_병용금기약물_20240813.pkl"))
         
+        # df_drug.head_att(10)        
         df_drug_sorted = df_drug.sort_values('category_id')
         categorys = df_drug_sorted['category_id'].unique().tolist()
+        print("categorys:", categorys)
         
         database = {
             "categorys": categorys,
@@ -460,7 +464,7 @@ class PillAnalysisEngine:
         
         model_path = os.path.join(self.modeling_path,
                                             "efficientnet_b3",
-                                            "efficientnet_b3_experiment_20250917_200857",
+                                            "efficientnet_b3_pill_classify_250921_2228",
                                             "best.pth"
                                             )
         if self.DEBUG_ON:
@@ -474,7 +478,7 @@ class PillAnalysisEngine:
         model_2_stage.eval()
         return model_2_stage
 
-    def load_2_stage_model_resnet152(self):
+    def load_2_stage_model_resnet(self):
         def load_model_dict(path, pth_name=None):
             """
             save_model_dict로 저장한 모델을 불러오는 함수
@@ -491,7 +495,7 @@ class PillAnalysisEngine:
             return model_state, model_info
         
         model_path = os.path.join(self.modeling_path,
-                                            "resnet152_20250918_203333",
+                                            "resnet101_116_classify_20250922_001120",
                                             "best.pth"
                                             )
         if self.DEBUG_ON:
@@ -502,17 +506,15 @@ class PillAnalysisEngine:
         
         from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 
-        model_2_stage = resnet152(pretrained=False)
+        model_2_stage = resnet101(pretrained=False)
 
         # 마지막 FC layer를 원하는 클래스 수로 변경
         model_2_stage.fc = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(model_2_stage.fc.in_features, 512),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(512, NUM_CLASSES)
-        )        
-        
+            # nn.Dropout(0.3),  # 적절한 정규화
+            nn.Dropout(0.1),  # 적절한 정규화
+            nn.Linear(model_2_stage.fc.in_features, NUM_CLASSES)
+        )
+
         model_2_stage.load_state_dict(model_2_stage_state)
         model_2_stage.to(self.__device)
         model_2_stage.eval()

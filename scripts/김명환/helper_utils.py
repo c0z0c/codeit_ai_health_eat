@@ -162,7 +162,7 @@ def print_dir_tree(root, max_depth=2, list_count=3, indent=""):
                 continue
             print(indent + "|-- "+ item)
 
-def save_model_dict(model, path, pth_name, kwargs=None):
+def save_model_dict(model, path, pt_name, kwargs=None):
     """모델 state_dict와 추가 정보를 저장"""
     def safe_makedirs(path):
         """안전한 디렉토리 생성"""
@@ -205,19 +205,19 @@ def save_model_dict(model, path, pth_name, kwargs=None):
         'model_info': model_info,
     }
 
-    save_path = os.path.join(path, f"{pth_name}.pth")
+    save_path = os.path.join(path, f"{pt_name}.pt")
     torch.save(save_dict, save_path)
     return save_path
 
-def load_model_dict(path, pth_name=None):
+def load_model_dict(path, pt_name=None):
     """
     save_model_dict로 저장한 모델을 불러오는 함수
     반환값: (model_state, model_info)
     """
     import torch
     load_path = path
-    if pth_name is not None:
-        load_path = os.path.join(path, f"{pth_name}.pth")
+    if pt_name is not None:
+        load_path = os.path.join(path, f"{pt_name}.pt")
     checkpoint = torch.load(load_path, map_location='cpu', weights_only=False)  # <-- 여기 추가
     model_state = checkpoint.get('model_state')
     model_info = checkpoint.get('model_info')
@@ -225,36 +225,36 @@ def load_model_dict(path, pth_name=None):
     return model_state, model_info
 
 
-def search_pth_files(base_path):
+def search_pt_files(base_path):
     """
-    입력된 경로의 하위 폴더들에서 pth 파일들을 검색
+    입력된 경로의 하위 폴더들에서 pt 파일들을 검색
     """
-    pth_files = []
+    pt_files = []
 
     if not os.path.exists(base_path):
         print(f"경로가 존재하지 않습니다: {base_path}")
-        return pth_files
+        return pt_files
 
-    print(f"pth 파일 검색 시작: {base_path}")
+    print(f"pt 파일 검색 시작: {base_path}")
 
-    # 하위 폴더들을 순회하며 pth 파일 검색
+    # 하위 폴더들을 순회하며 pt 파일 검색
     for root, dirs, files in os.walk(base_path):
         for file in files:
-            if file.endswith('.pth'):
-                pth_path = os.path.join(root, file)
-                pth_files.append(pth_path)
+            if file.endswith('.pt'):
+                pt_path = os.path.join(root, file)
+                pt_files.append(pt_path)
 
     # 결과 정리 및 출력
-    if pth_files:
-        print(f"\n발견된 pth 파일들 ({len(pth_files)}개):")
-        for i, pth_file in enumerate(pth_files, 1):
+    if pt_files:
+        print(f"\n발견된 pt 파일들 ({len(pt_files)}개):")
+        for i, pt_file in enumerate(pt_files, 1):
             # 상대 경로로 표시 (base_path 기준)
-            rel_path = os.path.relpath(pth_file, base_path)
+            rel_path = os.path.relpath(pt_file, base_path)
             print(f" {i:2d}. {rel_path}")
     else:
-        print("pth 파일을 찾을 수 없습니다.")
+        print("pt 파일을 찾을 수 없습니다.")
 
-    return pth_files
+    return pt_files
 
 def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=2, print_value=True):
     """
@@ -294,7 +294,7 @@ def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=2, print_
         else:
             print(f"{indent}{type(data).__name__}")
 
-def print_git_tree(data, indent="", max_depth=3, _depth=0):
+def print_dict_tree(data, indent="", max_depth=3, _depth=0):
     """
     PyTorch tensor/딕셔너리/리스트를 git tree 스타일로 출력
     """
@@ -326,6 +326,68 @@ def print_git_tree(data, indent="", max_depth=3, _depth=0):
     else:
         val_str = str(data)
         print(f"{indent}└─ {type(data).__name__}: {val_str[:80]}{'...' if len(val_str)>80 else ''}")
+
+def make_zip_with_progress(src_folder, zip_file_path):
+    """
+    src_folder의 모든 파일을 zip_file_path로 압축하며 진행 상황을 tqdm으로 표시합니다.
+
+    Args:
+        src_folder (str): 압축할 폴더 경로
+        zip_file_path (str): 생성할 zip 파일 경로
+
+    Returns:
+        str: 생성된 zip 파일 경로
+    """
+    import zipfile
+    file_list = []
+    for root, _, files in os.walk(src_folder):
+        for file in files:
+            file_list.append(os.path.join(root, file))
+
+    with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        for file in tqdm(file_list, desc="Zipping files", unit="file"):
+            arcname = os.path.relpath(file, src_folder)
+            zipf.write(file, arcname=arcname)
+    #print(f"ZIP 파일 생성 완료: {zip_file_path}")
+    return zip_file_path
+
+def zip_move_shared(zip_src_path, zip_name, dst_folder="shared_datasets", ignore=True):
+    """
+    YOLO 데이터셋 폴더(zip_src_path)를 zip으로 압축하여 공유 폴더(dst_folder)로 이동합니다.
+    - 이미 zip 파일이 있으면 ignore=True일 때 덮어쓰고, False면 기존 파일을 반환합니다.
+    - 진행 상황을 tqdm으로 표시합니다.
+
+    Args:
+        zip_src_path (str): YOLO 데이터셋 폴더 경로
+        zip_name (str): 압축 파일명(확장자 제외)
+        dst_folder (str, optional): 공유 폴더 경로. 기본값 "shared_datasets"
+        ignore (bool, optional): 기존 zip 파일 덮어쓰기 여부. 기본값 True
+
+    Returns:
+        str: 공유 폴더에 생성된 zip 파일 경로
+    """
+    dest_path = os.path.join(dst_folder, f"{zip_name}.zip")
+    if os.path.exists(dest_path):
+        if ignore:
+            os.remove(dest_path)
+        else:
+            return dest_path
+
+    # Google Drive의 공유 폴더로 이동
+    if os.path.exists(dst_folder) == False :
+        os.makedirs(dst_folder, exist_ok=True)
+
+    src_folder = os.path.join(zip_src_path)
+    zip_file_path = os.path.join(zip_src_path, '..', f"{zip_name}.zip")
+
+    # zip 압축 생성
+    zip_path = make_zip_with_progress(src_folder, zip_file_path)
+    #zip_path = shutil.make_archive(base_name=zip_file_path.replace('.zip', ''), format='zip', root_dir=src_folder)
+    print(f"ZIP 파일 생성: {zip_path}")
+
+    # shutil.move(zip_path, dest_path)
+    # print(f"ZIP 파일을 공유 폴더로 이동: {dest_path}")
+    return dest_path
 
 
 print("유틸리티 함수 로드 완료")
