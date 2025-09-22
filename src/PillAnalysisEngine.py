@@ -214,7 +214,7 @@ class PillAnalysisEngine:
             images_batch = [image_tensor]
             
             result_detections = self.model_1_stage(images_batch)
-            print("result_detections",result_detections)
+            # print("result_detections",result_detections)
             
             detections={}
             detections['org_img'] = image
@@ -429,7 +429,8 @@ class PillAnalysisEngine:
             mask_a = df['제품코드A'] == code_a
             for code_b in codes:
                 mask_b = df['제품코드B'] == code_b
-                if code_a == code_b: continue
+                if code_a == code_b: 
+                    continue
                 # 매칭되는 행들을 가져오기
                 matched_rows = df[mask_a & mask_b].copy()
                 if not matched_rows.empty:

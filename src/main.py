@@ -12,6 +12,57 @@ from PIL import Image
 import numpy as np
 from PillAnalysisEngine import PillAnalysisEngine
 
+def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=10, print_value=True, max_length=30):
+    """
+    JSON 객체를 지정한 단계(max_depth)까지 트리 형태로 출력
+    - list 타입은 list_count개 이상일 때 개수만 출력
+    - 하위 노드가 값일 경우 key(type) 형태로 출력
+    - print_value=True일 때 key(type): 값 형태로 출력
+    - max_length: 문자열 값의 출력 최대 길이 (초과시 ... 표시)
+    """
+    if _depth > max_depth:
+        return
+    if isinstance(data, dict):
+        for key, value in data.items():
+            if isinstance(value, (dict, list)):
+                print(f"{indent}|-- {key}")
+                print_json_tree(value, indent + "    ", max_depth, _depth + 1, list_count, print_value, max_length)
+            else:
+                if print_value:
+                    if isinstance(value, str) and len(value) > max_length:
+                        display_value = f'{value[:max_length]}...'
+                    else:
+                        display_value = value
+                    print(f"{indent}|-- {key}({type(value).__name__}): {display_value}")
+                else:
+                    print(f"{indent}|-- {key}({type(value).__name__})")
+    elif isinstance(data, list):
+        if len(data) > list_count:
+            print(f"{indent}|-- [list] ({len(data)} items)")
+        else:
+            for i, item in enumerate(data):
+                if isinstance(item, (dict, list)):
+                    print(f"{indent}|-- [{i}]")
+                    print_json_tree(item, indent + "    ", max_depth, _depth + 1, list_count, print_value, max_length)
+                else:
+                    if print_value:
+                        if isinstance(item, str) and len(item) > max_length:
+                            display_item = f'{item[:max_length]}...'
+                        else:
+                            display_item = item
+                        print(f"{indent}|-- [{i}]({type(item).__name__}): {display_item}")
+                    else:
+                        print(f"{indent}|-- [{i}]({type(item).__name__})")
+    else:
+        if print_value:
+            if isinstance(data, str) and len(data) > max_length:
+                display_data = f'{data[:max_length]}...'
+            else:
+                display_data = data
+            print(f"{indent}{type(data).__name__}: {display_data}")
+        else:
+            print(f"{indent}{type(data).__name__}")
+
 class AnalysisWorker(QThread):
     """분석 작업을 위한 워커 스레드"""
     finished = pyqtSignal(str)
@@ -25,7 +76,23 @@ class AnalysisWorker(QThread):
     def run(self):
         try:
             result_json = self.engine.analyze_image(self.image_path)
-            self.finished.emit(result_json)
+
+            # 문자열이면 파싱해서 트리 출력, dict면 그대로 출력
+            if isinstance(result_json, str):
+                try:
+                    parsed = json.loads(result_json)
+                except json.JSONDecodeError:
+                    parsed = result_json  # 비-JSON 문자열이면 그대로 둠
+            else:
+                parsed = result_json
+
+            print_json_tree(parsed, max_length=30)  # 문자열 값만 max_length 적용
+
+            # finished 시그널은 str이므로 dict면 JSON 문자열로 변환
+            if isinstance(result_json, (dict, list)):
+                self.finished.emit(json.dumps(result_json, ensure_ascii=False))
+            else:
+                self.finished.emit(result_json)
         except Exception as e:
             self.error.emit(str(e))
 
@@ -317,9 +384,34 @@ class PillAnalysisUI(QMainWindow):
             
             ddi_drug = box.get('ddi_drug')
             if ddi_drug:
+                """
+                    "ddi_drug": {
+                        "성분명A": "atorvastatin calcium (as atorvastatin)",
+                        "성분코드A": "111501ATB",
+                        "제품코드A": 642100980,
+                        "제품명A": "아토르바정10밀리그램(아토르바스타틴칼슘삼수화물)_(10.85mg/1정)",
+                        "업체명A": "(주)유한양행",
+                        "급여구분A": "급여",
+                        "성분명B": "sodium fusidate",
+                        "성분코드B": "229101ATB",
+                        "제품코드B": 642703980,
+                        "제품명B": "후시딘정(퓨시드산나트륨정)_(0.25g/1정)",
+                        "업체명B": "동화약품(주)",
+                        "급여구분B": "급여",
+                        "공고번호": 20180088,
+                        "공고일자": "2018-11-02",
+                        "금기사유": "횡문근융해와 같은 중증의 근육이상 보고",
+                        "category_id": 21324
+                    }
+                """                
+                result_text += "\n" + "="*50 + "\n"
                 result_text += f"  다른 약물과의 상호작용 주의가 필요합니다!\n"
-            
-            result_text += "\n" + "="*50 + "\n\n"
+                result_text += f"  • {ddi_drug.get('성분명A', 'N/A')} ({ddi_drug.get('제품명A', 'N/A')})\n"
+                result_text += f"  • {ddi_drug.get('성분명B', 'N/A')} ({ddi_drug.get('제품명B', 'N/A')})\n"
+                result_text += f"  • 금기사유: {ddi_drug.get('금기사유', 'N/A')}\n"
+                result_text += f"  • 공고일자: {ddi_drug.get('공고일자', 'N/A')}\n"
+
+            result_text += "\n" + "-"*50 + "\n\n"
         
         # 전체 주의사항
         has_ddi = any(box.get('ddi') or box.get('ddi_drug') for box in bboxs)
@@ -510,6 +602,7 @@ def main():
     # 4. GUI 애플리케이션 시작
     app = QApplication(sys.argv)
     window = PillAnalysisUI()
+    window.resize(1920, 1080)
     window.show()
     sys.exit(app.exec_())
 
