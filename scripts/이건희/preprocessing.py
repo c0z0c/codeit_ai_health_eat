@@ -156,10 +156,10 @@ def copy_images_from_jsons(json_dir, source_images_dir, output_images_dir, image
 
 def coco2yolo(json_path, output_dir, label_change_dict, train=True):
     if train:
-        json_path = os.path.join(json_path, 'train', 'train.json')
+        json_path = os.path.join(json_path, 'train', 'train_pseudo.json')
         output_dir = os.path.join(output_dir, 'train')
     else:
-        json_path = os.path.join(json_path, 'val', 'valid.json')
+        json_path = os.path.join(json_path, 'val', 'valid_pseudo.json')
         output_dir = os.path.join(output_dir, 'val')
 
 
@@ -195,7 +195,7 @@ def coco2yolo(json_path, output_dir, label_change_dict, train=True):
             # print(category_id)
             label = label_change_dict[str(category_id)]
             bbox = anno['bbox']
-            print(bbox)
+            # print(bbox)
             if not bbox:
                 continue
             # YOLO 좌표로 변환 (정규화된 중심점과 너비/높이)
@@ -300,16 +300,16 @@ class Args:
     train_images_relative_path = 'images/train'
     valid_images_relative_path = 'images/val'
     output_yaml_path = './data/my_dataset_config.yaml'
-    class_mapping_json_path = './data/labels/train/train.json'
+    class_mapping_json_path = './data/labels/train/train_pseudo.json'
 
 if __name__ == "__main__":
 
 
     args = Args()
     #
-
-    group_and_split_annotations(annotations_dir=args.source_json_dir,output_dir=args.output_json_dir, split_ratio=0.8)
-    copy_images_from_jsons(json_dir=args.output_json_dir, source_images_dir=args.source_images_dir, output_images_dir= args.output_images_dir, image_name_key= 'file_name')
+    #
+    # group_and_split_annotations(annotations_dir=args.source_json_dir,output_dir=args.output_json_dir, split_ratio=0.8)
+    # copy_images_from_jsons(json_dir=args.output_json_dir, source_images_dir=args.source_images_dir, output_images_dir= args.output_images_dir, image_name_key= 'file_name')
 
 
     id2label, label2id, label2name = create_class_mapping(input_json_path=args.class_mapping_json_path, output_json_path=args.dataset_root_path)

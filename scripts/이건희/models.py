@@ -2,6 +2,9 @@ import torch
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection import FasterRCNN_ResNet50_FPN_Weights  # weights 가져오기
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
+from torchvision.models.detection import FasterRCNN
+from torchinfo import summary
 
 def get_model(model_name, num_classes):
     """모델 이름에 따라 해당하는 모델 클래스의 인스턴스를 반환합니다. [사용가능한 모델명 : 'CustomFasterRCNN', '']
@@ -9,6 +12,8 @@ def get_model(model_name, num_classes):
     lower_model_name = str.lower(model_name)
     model_zoo = {
         "customfasterrcnn": CustomFasterRCNN,
+        'fasterrcnn_resnet101': FasterRCNN_resnet101,
+
     }
 
     if lower_model_name not in model_zoo:
@@ -43,4 +48,21 @@ class CustomFasterRCNN(torch.nn.Module):
         # 평가 시에는 images만 받습니다.
         return self.model(images, targets)
 
-# class Custom
+class FasterRCNN_resnet101(torch.nn.Module):
+    def __init__(self, num_classes):
+        super(FasterRCNN_resnet101, self).__init__()
+        # 1. ResNet-101 + FPN backbone 생성
+        self.backbone = resnet_fpn_backbone('resnet101', pretrained=True)
+
+        # 2. Faster R-CNN 생성 (num_classes는 원하는 클래스 수)
+        self.model = FasterRCNN(self.backbone, num_classes=num_classes)  # COCO는 91
+
+    def forward(self, images, targets=None):
+        return self.model(images, targets)
+
+
+if __name__ == "__main__":
+    model1 = FasterRCNN_resnet101(92)
+#     model2 = CustomFasterRCNN(92)
+#     print(model2.model.transform)
+    print(model1.model.transform)

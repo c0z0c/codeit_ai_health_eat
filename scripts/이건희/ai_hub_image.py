@@ -19,8 +19,8 @@ import json
 #                 shutil.copy(file_path, destination_path)
 
 
-# annotation_root = 'D:/project_example/data/ai04-level1-project/1.Training/라벨링데이터/경구약제조합_5000종/train_annotations'
-annotation_root = 'D:/project_example/data/ai04-level1-project/train_annotations'
+# annotation_root = './data/ai04-level1-project/1.Training/라벨링데이터/경구약제조합_5000종/train_annotations'
+annotation_root = './data/ai04-level1-project/train_annotations'
 
 
 image_id_map = {}

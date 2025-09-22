@@ -8,9 +8,11 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
 from tqdm import tqdm
 
+
 from utils import visualize_prediction
-from models import CustomFasterRCNN
+from models import CustomFasterRCNN, FasterRCNN_resnet101, get_model
 from utils import visualize_prediction
+from trainer_fasterrcnn import get_transforms
 
 plt.rcParams['font.family'] = 'Malgun Gothic' # Windows의 경우
 # plt.rcParams['font.family'] = 'AppleGothic' # Mac의 경우
@@ -20,12 +22,12 @@ plt.rcParams['axes.unicode_minus'] = False
 
 
 
-def get_inference_transforms():
-    """Inference transform"""
-    return v2.Compose([
-        v2.ToImage(),
-        v2.ToDtype(torch.float32, scale=True),
-    ])
+# def get_inference_transforms():
+#     """Inference transform"""
+#     return v2.Compose([
+#         v2.ToImage(),
+#         v2.ToDtype(torch.float32, scale=True),
+#     ])
 
 
 class ImageOnlyDataset(Dataset):
@@ -47,9 +49,13 @@ class ImageOnlyDataset(Dataset):
         return image, img_path
 
 
-def load_model(model_path, num_classes, device):
-    """모델 로드"""
-    model = CustomFasterRCNN(num_classes=num_classes)
+def load_model(model_name, model_path, num_classes, device):
+    """
+    모델 로드
+    """
+
+    model = get_model(model_name=model_name, num_classes=num_classes)
+    # model = CustomFasterRCNN(num_classes=num_classes)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.to(device)
     model.eval()
@@ -108,9 +114,8 @@ def save_predictions_to_json(predictions, image_paths, class_names, output_path,
     print(f"Predictions saved to {output_path}")
 
 
-def visualize_and_save_results(model, dataset, predictions, image_paths, class_names, args, save=True):
+def visualize_and_save_results(model, dataset, predictions, output_image_paths, class_names, args, save=True):
     """결과 시각화 및 저장"""
-    os.makedirs(args.visualization_output_path, exist_ok=True)
 
     # 랜덤 샘플 선택
     indices = random.sample(range(len(dataset)), min(args.vis_num_samples, len(dataset)))
@@ -141,7 +146,7 @@ def visualize_and_save_results(model, dataset, predictions, image_paths, class_n
         plt.axis("off")
         plt.tight_layout()
         if save:
-            save_path = os.path.join(args.visualization_output_path, f"sample_{i+1}.png")
+            save_path = os.path.join(output_image_paths, f"sample_{i+1}.png")
             plt.savefig(save_path, dpi=150, bbox_inches="tight")
             plt.close()
             print(f"Visualization saved: {save_path}")
@@ -150,12 +155,53 @@ def visualize_and_save_results(model, dataset, predictions, image_paths, class_n
             plt.show()
 
 
-def main(args):
+def main(args, model_name):
     print(f"Using device: {args.device}")
-    os.makedirs(args.prediction_output_path, exist_ok=True)
 
-    # 모델 로드
-    model = load_model(args.model_path, args.num_classes, args.device)
+    base_project_dir = "./object-detection"
+    model_project_dir = os.path.join(base_project_dir, model_name)
+    if args.model_path:
+        model_path = args.model_path
+        print(f"선택된 모델: {model_path}")
+
+    else:
+        # 학습 완료된 모델들 중에서 선택
+        if os.path.exists(model_project_dir):
+            existing_runs = [d for d in os.listdir(model_project_dir) if os.path.isdir(os.path.join(model_project_dir, d))]
+            if existing_runs:
+                print(f"사용 가능한 학습된 모델들: {existing_runs}")
+                # 가장 최신 폴더 자동 선택 (또는 사용자 입력으로 선택)
+                latest_run = sorted(existing_runs)[-1]  # 알파벳순으로 마지막 = 가장 큰 번호
+                selected_run_dir = os.path.join(model_project_dir, latest_run)
+                print(f"선택된 모델 폴더: {selected_run_dir}")
+            else:
+                raise FileNotFoundError(f"학습된 모델을 찾을 수 없습니다: {model_project_dir}")
+        else:
+            raise FileNotFoundError(f"모델 폴더가 존재하지 않습니다: {model_project_dir}")
+
+        # 모델 경로 설정 (best.pt 또는 특정 체크포인트 선택)
+        best_model_files = [f for f in os.listdir(selected_run_dir) if f.startswith('best_model_map_')]
+        if best_model_files:
+            model_path = os.path.join(selected_run_dir, best_model_files[0])  # 첫 번째 best 모델 사용
+        else:
+            # checkpoints 폴더에서 최신 체크포인트 찾기
+            checkpoint_dir = os.path.join(selected_run_dir, "checkpoints")
+            if os.path.exists(checkpoint_dir):
+                checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_')]
+                if checkpoint_files:
+                    # 가장 큰 에포크 번호의 체크포인트 선택
+                    latest_checkpoint = sorted(checkpoint_files, key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1]
+                    model_path = os.path.join(checkpoint_dir, latest_checkpoint)
+                else:
+                    raise FileNotFoundError(f"체크포인트 파일을 찾을 수 없습니다: {checkpoint_dir}")
+            else:
+                raise FileNotFoundError(f"체크포인트 폴더를 찾을 수 없습니다: {checkpoint_dir}")
+
+        print(f"사용할 모델 경로: {model_path}")
+
+
+    model = load_model(model_name, model_path, args.num_classes, args.device)
+
 
     # name, category_id 변환 딕셔너리 로드
     with open(args.label2name, 'r', encoding='utf-8') as f:
@@ -170,7 +216,7 @@ def main(args):
     if args.predict_one_image:
         image_path = args.one_image_path
         image = Image.open(image_path).convert('RGB')
-        transforms = get_inference_transforms()
+        transforms = get_transforms(train=False)
         image_tensor = transforms(image)
 
         # 2. 모델이 기대하는 배치 형식으로 변환 (리스트 안에 텐서를 넣음)
@@ -192,21 +238,30 @@ def main(args):
         )
 
     else:
-        dataset = ImageOnlyDataset(args.test_image_dir, transforms=get_inference_transforms())
+        dataset = ImageOnlyDataset(args.test_image_dir, transforms=get_transforms(train=False))
         data_loader = DataLoader(dataset, batch_size=args.batch_size,
                                  shuffle=False, num_workers=args.num_workers)
         # 추론 실행
         predictions, image_paths = run_inference(model, data_loader, args.device, args.confidence_threshold)
         # print(predictions[0])
 
+
         # JSON 저장
         if args.save_predictions:
-            output_json = os.path.join(args.prediction_output_path, "test_predictions_ssd.json")
+            predictions_dir = os.path.join(selected_run_dir, "test_predictions")
+            os.makedirs(predictions_dir, exist_ok=True)
+
+            output_json = os.path.join(predictions_dir, "test_predictions.json")
             save_predictions_to_json(predictions, image_paths, class_names, output_json, label2id_dict=label2id_dict)
+            print(f"예측 결과 저장: {output_json}")
 
         # 시각화
         if args.save_visualizations:
-            visualize_and_save_results(model, dataset, predictions, image_paths, class_names, args)
+            visualizations_dir = os.path.join(selected_run_dir, "test_visualizations")
+            os.makedirs(visualizations_dir, exist_ok=True)
+
+            visualize_and_save_results(model, dataset, predictions, visualizations_dir, class_names, args)
+            print(f"시각화 결과 저장: {visualizations_dir}")
 
         print("Inference completed!")
 
@@ -216,12 +271,13 @@ if __name__ == "__main__":
         def __init__(self):
             # Data paths
             self.test_image_dir = "./data/ai04-level1-project/test_images"  ##
-            self.model_path = "./checkpoints/CustomFasterRCNN/final_model.pth"  ##
+            self.model_path = "./checkpoints/FasterRCNN_resnet101/final_model.pth"  ##
             self.label2name = './data/label2name.json'
             self.label2id = './data/label2id.json'
 
             # Inference parameters
-            self.predict_one_image = True  ## 이미지 하나만 예측할때 True
+            # self.predict_one_image = True  ## 이미지 하나만 예측할때 True
+            self.predict_one_image = False  ## 이미지 하나만 예측할때 True
             self.one_image_path = './data/ai04-level1-project/test_images/1.png'
 
 
@@ -231,15 +287,16 @@ if __name__ == "__main__":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"  ## 디바이스 설정
 
             # Model parameters
-            self.num_classes = 93  ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
+            self.num_classes = 72  ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
 
             # Output settings
             self.save_predictions = True  ## json 데이터 저장 여부
-            self.prediction_output_path = "./predictions"  ## json 데이터 저장 폴더 설정
+            self.prediction_output_dir = "./predictions"  ## json 데이터 저장 폴더 설정
             self.save_visualizations = True  ## 이미지 데이터 저장 여부
-            self.visualization_output_path = "./visualizations"  ## 이미지 데이터 저장 폴더
+            self.visualization_output_dir = "./visualizations"  ## 이미지 데이터 저장 폴더
             self.vis_num_samples = 20  ## 이미지 데이터 저장 갯수
 
-
+    # model_name = 'CustomFasterRCNN'
+    model_name = 'fasterrcnn_resnet101'
     args = Args_fasterrcnn()
-    main(args)
+    main(args, model_name)

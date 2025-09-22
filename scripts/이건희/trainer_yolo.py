@@ -1,17 +1,7 @@
-import torch
-import torch.optim as optim
-from torch.utils.data import DataLoader
 import os
-import json
-from tqdm import tqdm
 import matplotlib.pyplot as plt
-from torchvision import transforms as T
-from torchvision.transforms import v2
-
-import models
-from dataset import CustomCocoDataset, custom_collate_fn
-from models import get_model, CustomFasterRCNN
-from utils import visualize_prediction, get_id2name_dict
+import re
+import wandb
 
 plt.rcParams['font.family'] = 'Malgun Gothic' # Windows의 경우
 # plt.rcParams['font.family'] = 'AppleGothic' # Mac의 경우
@@ -21,31 +11,51 @@ plt.rcParams['axes.unicode_minus'] = False
 from ultralytics import YOLO
 
 def main(args):
+    base_project_dir = "./object-detection"
+    yolo_project_dir = base_project_dir + "/yolo"
+    os.makedirs(yolo_project_dir, exist_ok=True)
+
+    existing_runs = [d for d in os.listdir(yolo_project_dir) if re.match(r'^train\d+$', d)]
+
+    if existing_runs:
+        # 기존 폴더에서 가장 큰 숫자 찾기
+        run_numbers = [int(re.match(r'^train(\d+)$', d).group(1)) for d in existing_runs]
+        next_run_number = max(run_numbers) + 1
+    else:
+        # 기존 폴더가 없으면 1부터 시작
+        next_run_number = 1
+
+
+    # 새로운 실행 폴더명 생성
+    run_name = f"yolo_train{next_run_number}"
+    run_dir = os.path.join(yolo_project_dir, run_name)
+
+
+    # WandB 설정
+    if not args.wandb_run_name:
+        args.wandb_run_name = run_name
+
+    if args.use_wandb:
+        wandb.login()
+    print(yolo_project_dir)
+    print(run_name)
+
     model = YOLO(args.model_name)
-    results = model.train(data = args.yaml_path,
+    results = model.train(data=args.yaml_path,
                           epochs=args.num_epochs,
                           imgsz=640,
+                          degrees=args.degrees,
                           batch=args.batch_size,
-                          device=0)
-                          # device=args.device)
-    print("학습 완료! best.pt 저장 위치:", model.ckpt_path)
+                          device=0,
+                          project=yolo_project_dir,  # object-detection/yolo로 설정
+                          name=run_name,             # yolo_train{num}으로 설정
+                          exist_ok=True
+                          )
 
-    # 학습된 모델 불러오기
-    # trained_model = YOLO("./runs/detect/train/weights/best.pt")
-    #
-    # # 추론 실행
-    # results = trained_model.predict(
-    #     source="./data/ai04-level1-project/test_images",  # 단일 이미지, 폴더, 비디오 모두 가능
-    #     save=True,  # 결과 이미지 저장
-    #     conf=0.5  # confidence threshold
-    # )
-    #
-    # # 결과 확인
-    # for r in results:
-    #     print(r.boxes.xyxy)  # 감지된 박스 좌표
-    #     print(r.boxes.conf)  # confidence 값
-    #     print(r.boxes.cls)  # 클래스 ID
+    print(f"학습 완료! 결과 저장 위치: {run_dir}")
+    print(f"best.pt 저장 위치: {os.path.join(run_dir, 'weights', 'best.pt')}")
 
+    return run_dir  # 추론에서 사용할 수 있도록 경로 반환
 # if __name__ == "__main__":
 #     args = Args()
 #     main(args)

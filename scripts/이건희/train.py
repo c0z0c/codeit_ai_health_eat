@@ -8,22 +8,26 @@ plt.rcParams['font.family'] = 'Malgun Gothic' # Windows의 경우
 # plt.rcParams['font.family'] = 'NanumGothic' # Linux의 경우
 plt.rcParams['axes.unicode_minus'] = False
 
-class Args_rcnn:
+class Args_fasterrcnn:
     def __init__(self):
         # Data paths - 새로운 구조에 맞게 수정
         self.train_image_dir = "./data/images/train"  # 훈련 이미지 폴더
-        self.valid_image_dir = "data/images/val"  # 검증 이미지 폴더
-        self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
-        self.valid_annotation_path = "data/labels/val/valid.json"  # 검증 어노테이션 파일
-        self.checkpoint_dir = "./checkpoints/CustomFasterRCNN"  # checkpoint 모델 경로
+        self.valid_image_dir = "./data/images/val"  # 검증 이미지 폴더
+        self.train_annotation_path = "./data/labels/train/train_pseudo.json"  # 훈련 어노테이션 파일
+        # self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
+        self.valid_annotation_path = "./data/labels/val/valid_pseudo.json"  # 검증 어노테이션 파일
+        # self.valid_annotation_path = "./data/labels/val/valid.json"  # 검증 어노테이션 파일
+        self.id2label_path = './data/id2label.json'
+        # self.checkpoint_dir = "./checkpoints/"  # checkpoint 모델 경로 # 이제 안씀
 
         # Training parameters
         self.batch_size = 4                                                                     # 배치 크기
-        self.num_epochs = 11                                                                    # 에포크 수
+        # self.num_epochs = 31                                                                 # 에포크 수
+        self.num_epochs = 30                                                                    # 에포크 수
         self.learning_rate = 0.005                                                              # 학습률
         self.weight_decay = 0.0005                                                              # 학습률 변화
         self.momentum = 0.9                                                                     # 모멘텀
-        self.step_size = 3
+        self.step_size = 10
         self.gamma = 0.1
 
         # Model parameters
@@ -34,14 +38,13 @@ class Args_rcnn:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"  # 디바이스 설정
         self.num_workers = 4                                                                    # Dataloader의 num_worker 수 설정
         self.print_freq = 10                                                                    # 얼마마다 loss 프린트 할 것인지
-        self.save_freq = 1                                                                      # 체크포인트를 몇 epoch마다 저장할 것인지
+        self.save_freq = 5                                                                      # 체크포인트를 몇 epoch마다 저장할 것인지
 
         # Resume training
                                                                                                 # 중간에 학습 멈추고 다시 시작할때, checkpoint 불러오는 설정
-        # self.resume = False                                                                   # False는 안불러옴 - 처음부터 학습함(대신 이전에 학습해서 checkpoint있으면, 덮어씀.
-        # self.checkpoint_path = None
-        self.resume = True                                                                      # True는 불러옴
-        self.checkpoint_path = "./checkpoints/CustomFasterRCNN/checkpoint_epoch_10.pth"         # 불러올 checkpoint 경로
+        self.resume = False                                                                   # False는 안불러옴 - 처음부터 학습함(대신 이전에 학습해서 checkpoint있으면, 덮어씀.
+        self.checkpoint_path = "./object-detection/CustomFasterRCNN/train1/checkpoints/checkpoint_epoch_1.pth"         # 불러올 checkpoint 경로
+        self.checkpoint_path = "./object-detection/FasterRCNN_resnet101/train1/checkpoints/checkpoint_epoch_1.pth"
 
         # Validation - 이제 별도 파일로 제공되므로 필요없음
         # self.val_split = 0.2
@@ -51,6 +54,7 @@ class Args_rcnn:
         self.vis_num_samples = 5                                                                # 이미지 갯수
 
         # WandB settings
+        # self.use_wandb = False                                                                   # wandb 연결
         self.use_wandb = True                                                                   # wandb 연결
         self.wandb_project = "object-detection"
         self.wandb_entity = 'AI-team4'
@@ -64,17 +68,27 @@ class Args_rcnn:
 
 class Args_yolo:
     def __init__(self):
-        # Data paths - 새로운 구조에 맞게 수정
-        self.train_image_dir = "./data/images/train"  # 훈련 이미지 폴더
-        self.valid_image_dir = "data/images/val"  # 검증 이미지 폴더
-        self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
-        self.valid_annotation_path = "data/labels/val/valid.json"  # 검증 어노테이션 파일
-        self.checkpoint_dir = "./checkpoints"  # checkpoint 모델 경로
-        self.yaml_path = './data/my_dataset_config.yaml'
-
-        # Training parameters
+        ### 자주 수정하는 파라미터를 가장 위로 올려놓음.
         self.batch_size = 4  # 배치 크기
         self.num_epochs = 30  # 에포크 수
+        self.degrees = 15
+
+        # Evaluation settings
+        self.eval_freq = 1  # 몇 epoch마다 평가하나
+        self.confidence_threshold = 0.5  # classification된 박스를 제거하는 기준
+        self.nms_threshold = 0.5  # IoU를 기준으로 박스를 제거하는 기준                                         # IoU를 기준으로 박스를 제거하는 기준
+        self.save_metric_plots = True
+
+        # Data paths - 새로운 구조에 맞게 수정
+        self.train_image_dir = "./data/images/train"  # 훈련 이미지 폴더
+        self.valid_image_dir = "./data/images/val"  # 검증 이미지 폴더
+        self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
+        self.valid_annotation_path = "./data/labels/val/valid.json"  # 검증 어노테이션 파일
+        self.yaml_path = './data/my_dataset_config.yaml'
+        # self.checkpoint_dir = "./checkpoints"  # checkpoint 모델 경로
+
+        # Training parameters
+
         self.learning_rate = 0.005  # 학습률
         self.weight_decay = 0.0005  # 학습률 변화
         self.momentum = 0.9  # 모멘텀
@@ -89,7 +103,7 @@ class Args_yolo:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"  # 디바이스 설정
         self.num_workers = 4  # Dataloader의 num_worker 수 설정
         self.print_freq = 10  # 얼마마다 loss 프린트 할 것인지
-        self.save_freq = 1  # 체크포인트를 몇 epoch마다 저장할 것인지
+        self.save_freq = 5  # 체크포인트를 몇 epoch마다 저장할 것인지
 
         # Resume training
         # 중간에 학습 멈추고 다시 시작할때, checkpoint 불러오는 설정
@@ -106,24 +120,27 @@ class Args_yolo:
         self.vis_num_samples = 5  # 이미지 갯수
 
         # WandB settings
-        self.use_wandb = True  # wandb 연결
-        self.wandb_project = "object-detection"
+        # self.use_wandb = False  # wandb 연결
+        self.use_wandb = True                                                                   # wandb 연결
+        self.wandb_project = "Object-Detection"
         self.wandb_entity = 'AI-team4'
         self.wandb_run_name = None  # None으로 설정되면 아무렇게나 자동으로 저장됨
 
-        # Evaluation settings
-        self.eval_freq = 1  # 몇 epoch마다 평가하나
-        self.confidence_threshold = 0.5  # classification된 박스를 제거하는 기준
-        self.nms_threshold = 0.5  # IoU를 기준으로 박스를 제거하는 기준                                         # IoU를 기준으로 박스를 제거하는 기준
 
 
 def main():
     model_name = input('사용하실 모델 명을 입력하세요. ["FasterRCNN","Yolo"] :')
-    model_name = str.lower(model_name)
-    if model_name == 'fasterrcnn':
-        args = Args_rcnn()
-        args.model_name = 'CustomFasterRCNN'
-        trainer_fasterrcnn.main(args)
+    lower_model_name = str.lower(model_name)
+    if lower_model_name == 'fasterrcnn':
+        backbone_name = input('사용할 backbone을 선택하세요 [Resnet-50, resnet-101] : ')
+        lower_backbone_name = str.lower(backbone_name)
+        if lower_backbone_name == 'resnet-50':
+            model_name = 'CustomFasterRCNN'
+        elif lower_backbone_name == 'resnet-101':
+            model_name = 'FasterRCNN_resnet101'
+        args = Args_fasterrcnn()
+        trainer_fasterrcnn.main(args, model_name)
+
 
     elif model_name == 'yolo':
         args = Args_yolo()
