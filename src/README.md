@@ -17,7 +17,7 @@ pragma: no-cache
 
 [![알약 분석 프로그램 시연](https://img.youtube.com/vi/L_HuRQvuV9E/0.jpg)](https://youtu.be/L_HuRQvuV9E)
 
-**[▶️ 시연 동영상 보기](https://youtu.be/L_HuRQvuV9E)**
+**[▶️ 시연 동영상 보기](https://youtu.be/vRsNxjkodzU)**
 
 ## 목차
 1. [설치 요구사항](#1-설치-요구사항) <br/>

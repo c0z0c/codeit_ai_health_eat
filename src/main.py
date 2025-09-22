@@ -101,6 +101,7 @@ class PillAnalysisUI(QMainWindow):
         super().__init__()
         self.engine = None
         self.current_image_path = None
+        self.full_pixmap = QPixmap()
         self.init_ui()
         self.init_engine()
     
@@ -131,7 +132,8 @@ class PillAnalysisUI(QMainWindow):
         
         # 프로그레스 바
         self.progress_bar = QProgressBar()
-        self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        # self.progress_bar.setRange(0, 0)
         main_layout.addWidget(self.progress_bar)
         
         # 스플리터로 좌우 분할
@@ -148,10 +150,10 @@ class PillAnalysisUI(QMainWindow):
         self.image_label.setStyleSheet("border: 1px solid gray;")
         
         # 스크롤 영역에 이미지 라벨 추가
-        scroll_area = QScrollArea()
-        scroll_area.setWidget(self.image_label)
-        scroll_area.setWidgetResizable(True)
-        left_layout.addWidget(scroll_area)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidget(self.image_label)
+        self.scroll_area.setWidgetResizable(True)
+        left_layout.addWidget(self.scroll_area)
         
         # 알약 크롭 이미지들
         self.crop_label = QLabel("분석 결과가 여기에 표시됩니다")
@@ -210,10 +212,9 @@ class PillAnalysisUI(QMainWindow):
         """원본 이미지 표시"""
         try:
             pixmap = QPixmap(image_path)
-            # 이미지 크기 조정
-            scaled_pixmap = pixmap.scaled(600, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            self.image_label.setPixmap(scaled_pixmap)
-            self.image_label.setMinimumSize(scaled_pixmap.size())
+            # 전체 해상도 이미지를 보관하고 화면 크기에 맞게 갱신
+            self.full_pixmap = pixmap
+            self.update_main_image()
         except Exception as e:
             QMessageBox.warning(self, "오류", f"이미지 로드 실패: {str(e)}")
     
@@ -241,7 +242,8 @@ class PillAnalysisUI(QMainWindow):
             
             # UI 상태 복원
             self.analyze_btn.setEnabled(True)
-            self.progress_bar.setVisible(False)
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 1) # 무한 프로그래스 해제
             
         except Exception as e:
             self.on_analysis_error(str(e))
@@ -250,7 +252,8 @@ class PillAnalysisUI(QMainWindow):
         """분석 오류"""
         self.result_text.setText(f"분석 실패: {error_msg}")
         self.analyze_btn.setEnabled(True)
-        self.progress_bar.setVisible(False)
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 1) # 무한 프로그래스 해제
         QMessageBox.critical(self, "오류", f"분석 중 오류가 발생했습니다:\n{error_msg}")
     
     def display_results(self, result_json):
@@ -301,9 +304,40 @@ class PillAnalysisUI(QMainWindow):
         
         painter.end()
         
-        # 크기 조정하여 표시
-        scaled_pixmap = pixmap.scaled(600, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.image_label.setPixmap(scaled_pixmap)
+        # 전체 해상도 이미지를 저장해 두고, 화면 크기에 맞게 꽉 차게 표시
+        self.full_pixmap = pixmap
+        self.update_main_image()
+
+    def update_main_image(self):
+        """스크롤 영역 viewport에 맞춰 비율 유지 '맞춤' 표시(과도한 확대 방지)"""
+        try:
+            if self.full_pixmap.isNull():
+                return
+            if not hasattr(self, "scroll_area"):
+                return
+            vsize = self.scroll_area.viewport().size()
+            if vsize.width() <= 0 or vsize.height() <= 0:
+                return
+            
+            vsize -= QSize(0, 10)  # 테두리 여유 공간
+
+            # 원본보다 크게는 키우지 않고, 영역 안에 '맞춤(Contain)'으로 표시
+            ow, oh = self.full_pixmap.width(), self.full_pixmap.height()
+            if ow <= vsize.width() and oh <= vsize.height():
+                pix = self.full_pixmap  # 업스케일 금지
+            else:
+                pix = self.full_pixmap.scaled(vsize, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+            self.image_label.setPixmap(pix)
+            self.image_label.setFixedSize(pix.size())
+        except Exception:
+            fallback = self.full_pixmap.scaled(self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.image_label.setPixmap(fallback)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # 창/레이아웃 크기 변화에 맞춰 이미지 갱신
+        self.update_main_image()
     
     def display_crop_images(self, bboxs):
         """크롭된 알약 이미지들 표시"""
