@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 # --- 시간 관련 ---
 import pytz
 
-class PillAnalysisEngine:    
+class PillAnalysisEngine:
     def __init__(self):
         def drive_root():
             """
@@ -66,10 +66,17 @@ class PillAnalysisEngine:
             print(self.modeling_path)
             print(self.data_path)
             
+        self.categorys = []
         self.database = self.init_database() # DB 초기화 클래스 개수 확인을 위하여 가장 먼저 로딩되어야함.
-        self.model_1_stage = self.load_1_stage_model()
-        self.model_2_stage = self.load_2_stage_model_resnet()
+        self.model_1_stage = self.load_1_stage_model_fasterrcnn_resnet101()
+        self.model_2_stage = None
+        #self.model_2_stage = self.load_2_stage_model_resnet()
         #self.model_2_stage = self.load_2_stage_model_efficientnet_b3()
+        
+        self.transform_fasterrcnn_resnet101 = v2.Compose([
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+        ])
     
         self.transform = transforms.Compose([
             transforms.Resize(224),           # 짧은 변 기준 224로 리사이즈 (비율 유지)
@@ -109,7 +116,11 @@ class PillAnalysisEngine:
         validated_image = self.validate_image(image)
         
         # 2단계: 객체 탐지
-        detections = self.detect_pills(validated_image)
+        if self.model_2_stage:
+            detections = self.detect_pills(validated_image)
+        else:
+            detections = self.detect_pills_fasterrcnn_resnet101(validated_image)
+            
         detections['img_path'] = image
         """
         detections
@@ -170,6 +181,73 @@ class PillAnalysisEngine:
         # 필요하다면 전처리
         return image
     
+    def detect_pills_fasterrcnn_resnet101(self, validated_image):
+        """
+        detections
+        ├─ org_img [Image]
+        ├─ bboxs [list]
+        │  ├─ [0] [dict]
+        │  │  ├─ class_id [int]
+        │  │  ├─ class_name [int]
+        │  │  ├─ xyxy [list] x1, y1, x2, y2
+        │  │  ├─ xywh [list] x1, y1, w, h
+        │  │  ├─ detect_score [float]
+        │  │  ├─ img [Image]
+        │  │  ├─ class_probabilitie [ndarray]
+        │  │  ├─ class_score [float32]
+        ├─ [1] [dict]
+        │   └─ ... (다음 박스 정보)
+        └─ [N] [dict]
+                └─ ... (다음 박스 정보)
+        """
+        image = validated_image
+        # 이미지 텐서 변환
+        pillEngine.model_1_stage.eval()
+        with torch.no_grad():
+            image_tensor = pillEngine.transform_fasterrcnn_resnet101(image)
+            images_batch = [image_tensor]
+            img_paths_batch = [test_images[0]]
+            
+            result_detections = pillEngine.model_1_stage(images_batch)
+            print("result_detections",result_detections)
+            
+            detections={}
+            detections['org_img'] = image
+            detections['bboxs'] = []
+            
+            for res in result_detections:
+                i = 0
+                for label in res['labels']:
+                    label = label.cpu().numpy().astype(int)
+                    box = res['boxes'][i].cpu().numpy().astype(int)
+                    score = res['scores'][i].cpu().numpy().astype(float)
+                    #print(f"label: {label}, box: {box}, score: {score}")
+                    
+                    x1, y1, x2, y2 = box
+                    w = x2-x1
+                    h = y2-y1
+                    cropped = image.crop((x1, y1, x2, y2))
+                    
+                    class_name = pillEngine.database['categorys'][label]
+                    class_probabilitie = score
+                    
+                    bbox_info ={
+                        'class_id': label,
+                        'class_name': label,
+                        'xyxy': [int(x1), int(y1), int(x2), int(y2)],
+                        'xywh': [int(x1), int(y1), int(w), int(h)],
+                        'detect_score': float(score),
+                        'img': cropped,
+                        'class_name': class_name,
+                        'class_probabilitie': [class_probabilitie,],
+                        'class_score': score,
+                    }
+                    detections['bboxs'].append(bbox_info)
+                    #print(bbox_info)
+                    i += 1
+
+        return detections
+    
     def detect_pills(self, validated_image):
         import matplotlib.patches as mpatches
         if self.model_1_stage is None:
@@ -180,7 +258,8 @@ class PillAnalysisEngine:
             validated_image = np.array(validated_image)
             
         # 객체 탐지 수행
-        result_detections = self.model_1_stage(validated_image, verbose=False)
+        with torch.no_grad():
+            result_detections = self.model_1_stage(validated_image, verbose=False)
 
         current_img = Image.fromarray(result_detections[0].orig_img.copy())
         img_width, img_height = current_img.size
@@ -240,10 +319,15 @@ class PillAnalysisEngine:
     
         # 3단계: 객체 분류
     def classify_pills(self, validated_image, detections):
+        
+        if not self.model_2_stage:
+            return detections
+        
         for box in detections['bboxs']:
             image = box['img']
             input_tensor = self.transform(image).unsqueeze(0).to(self.__device)    
-            result_classify = self.model_2_stage(input_tensor)
+            with torch.no_grad():
+                result_classify = self.model_2_stage(input_tensor)
             
             probabilities = torch.nn.functional.softmax(result_classify[0], dim=0)
             class_id = torch.argmax(probabilities).item()
@@ -415,19 +499,22 @@ class PillAnalysisEngine:
     def init_database(self):
         #df_drug_116
         #df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug.pkl"))
-        df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug_116.pkl"))
+        #df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug_116.pkl"))
+        df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug_118.pkl"))
         df_interaction = pd.read_pickle(os.path.join(self.data_path, "df_병용금기약물_20240813.pkl"))
         
         # df_drug.head_att(10)        
         df_drug_sorted = df_drug.sort_values('category_id')
         categorys = df_drug_sorted['category_id'].unique().tolist()
-        print("categorys:", categorys)
+        
+        # print("categorys:", categorys)
         
         database = {
             "categorys": categorys,
             "df_drug": df_drug,
             "td_interaction": df_interaction
         }
+        
         return database
     
     def load_1_stage_model(self):
@@ -444,6 +531,49 @@ class PillAnalysisEngine:
         model_1_stage = YOLO(model_path)
         model_1_stage.to(self.__device)
         model_1_stage.eval()
+        return model_1_stage
+    
+    def load_1_stage_model_fasterrcnn_resnet101(self):
+        from models import CustomFasterRCNN, FasterRCNN_resnet101, get_model
+        #model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
+        
+        categorys = [
+            3543, 10220, 16547, 29344, 3482, 20237, 25468, 30307, 16231, 34596,
+            19606, 21025, 6562, 23202, 27732, 35205, 2482, 13394, 23222, 25437,
+            22346, 5093, 19551, 3350, 3831, 16261, 27652, 3742, 5885, 25366,
+            19231, 22073, 20876, 31884, 36636, 27776, 1899, 33207, 16550, 27925,
+            12777, 22361, 12419, 29666, 33879, 12080, 21324, 18109, 18356, 18146,
+            27992, 4377, 6191, 4542, 32309, 31704, 28762, 38161, 12246, 22626,
+            20013, 44198, 31862, 24849, 29450, 33877, 33008, 19860, 13899, 21770,
+            29870, 41767, 16687
+        ]
+        self.database['categorys'] = categorys
+        
+        model_path = os.path.join(self.modeling_path,
+                                            "fasterrcnn_resnet101",
+                                            "best_model_map_0.9448",
+                                            "best_model_map_0.9448.pth"
+                                            )
+        if self.DEBUG_ON:
+            print(os.path.exists(model_path), model_path)
+
+        #model.load_state_dict(torch.load(model_path, map_location=device))
+        
+        # model_1_stage_stage_state, model_1_stage_info = load_model_dict(model_path)
+        
+        #model.load_state_dict(torch.load(model_path, map_location=device))
+        
+        model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
+        
+        model_1_stage_state = torch.load(model_path, map_location=self.__device)
+        
+        model_1_stage.load_state_dict(model_1_stage_state)
+        
+        model_1_stage.to(self.__device)        
+        
+        model_1_stage.eval()
+        #print("load_1_stage_model_fasterrcnn_resnet101:", model_1_stage)
+        
         return model_1_stage
     
     def load_2_stage_model_efficientnet_b3(self):
@@ -495,7 +625,7 @@ class PillAnalysisEngine:
             return model_state, model_info
         
         model_path = os.path.join(self.modeling_path,
-                                            "resnet101_116_classify_20250922_001120",
+                                            "resnet101_118_classify_02_20250922_112335",
                                             "best.pth"
                                             )
         if self.DEBUG_ON:
@@ -748,5 +878,5 @@ class PillAnalysisEngine:
 
 # # 이미지 파일 경로를 이미지로 변환
 # image_path = test_images[0]
-# self = PillAnalysisEngine()
-# validated_image = self.validate_image(image_path)    
+# pillEngine = PillAnalysisEngine()
+# validated_image = pillEngine.validate_image(image_path)    
