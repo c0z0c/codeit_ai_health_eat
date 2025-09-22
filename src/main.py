@@ -332,6 +332,53 @@ class PillAnalysisUI(QMainWindow):
         
         self.result_text.setText(result_text)
 
+def download_model_files(url, target):
+    """url의 파일을 target 경로에 다운로드 (이미 있으면 건너뜀, 폴더 자동 생성)"""
+    import urllib.request
+    import os
+    import sys
+    import time
+
+    # 폴더 생성
+    target_dir = os.path.dirname(target)
+    os.makedirs(target_dir, exist_ok=True)
+
+    # 파일이 이미 존재하면 건너뜀
+    if os.path.exists(target):
+        print(f"파일이 이미 존재합니다: {os.path.basename(target)}")
+        return True
+
+    try:
+        filename = os.path.basename(target)
+        # print(f"다운로드 시작: {filename}")
+        
+        def progress_hook(block_num, block_size, total_size):
+            if total_size > 0:
+                downloaded = block_num * block_size
+                percent = min(100, (downloaded * 100) // total_size)
+                downloaded_mb = downloaded / (1024 * 1024)
+                total_mb = total_size / (1024 * 1024)
+                
+                # 프로그레스 바 생성 (50자 길이)
+                bar_length = 50
+                filled_length = int(bar_length * percent // 100)
+                bar = '=' * filled_length + '.' * (bar_length - filled_length)
+                
+                # 콘솔에 한 줄로 출력 (이전 줄 덮어쓰기)
+                sys.stdout.write(f'\r{filename}: |{bar}| {percent:3.0f}% ({downloaded_mb:.1f}MB/{total_mb:.1f}MB)')
+                sys.stdout.flush()
+        
+        urllib.request.urlretrieve(url, target, reporthook=progress_hook)
+        print('')
+        #print(f"\n다운로드 완료: {filename}")
+        return True
+        
+    except Exception as e:
+        print(f"\n다운로드 실패: {filename} - {e}")
+        if os.path.exists(target):
+            os.remove(target)
+        return False
+
 def extract_model_from_split_files():
     """분할된 tar 파일들을 합쳐서 best.pt 모델 파일을 생성"""
     try:
@@ -415,15 +462,52 @@ def extract_model_from_split_files():
         return False
 
 def main():
-    # 분할된 tar 파일들을 합쳐서 best.pt 모델 파일 생성
-    print("모델 파일 확인 및 추출 중...")
+    # 모델 파일 자동 다운로드 및 준비
+    print("="*60)
+    print("알약 분석기 시작")
+    print("="*60)
+    
+    py_dir = os.path.dirname(os.path.abspath(__file__))
+    urls = [{'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.001",
+              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.001")},
+             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.002",
+              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.002")},
+             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.003",
+              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.003")},
+             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/yolo8m/best.pt",
+              'target' : os.path.join(py_dir, "python_modules", "modeling", "yolo8m", "best.pt")},
+        ]
+    
+    
+    # 1. 모델 파일이 존재하는지 확인
+    py_dir = os.path.dirname(os.path.abspath(__file__))
+    model_path = os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.pt")
+    
+    if not os.path.exists(model_path):
+        print("모델 파일이 없습니다. 자동으로 다운로드를 시작합니다...")
+        print("\n다운로드할 파일들:")
+        for url in urls:
+            print(f"- {os.path.basename(url['target'])}")
+        print("\n이 파일들은 GitHub 파일 크기 제한으로 인해 분할되어 저장되었습니다.")
+        
+        # 2. 모델 파일들 다운로드
+        for url in urls:
+            for i in range(3):  # 최대 3회 재시도
+                if download_model_files(url['url'], url['target']):
+                    break
+                print(f"재시도 {i+1}/3...")
+    
+    # 3. 분할된 tar 파일들을 합쳐서 best.pt 모델 파일 생성
+    print("\n모델 파일 확인 및 추출 중...")
     if not extract_model_from_split_files():
         print("모델 파일 추출에 실패했습니다.")
         input("Enter 키를 눌러 종료하세요...")
         return
     
     print("모델 파일 준비 완료")
+    print("="*60)
     
+    # 4. GUI 애플리케이션 시작
     app = QApplication(sys.argv)
     window = PillAnalysisUI()
     window.show()
