@@ -7,8 +7,9 @@ class Args_fasterrcnn:
     def __init__(self):
         # Data paths
         self.test_image_dir = "./data/ai04-level1-project/test_images"          ##
-        self.resnet_50_model_path = "./checkpoints/CustomFasterRCNN/train1/final_model.pth"      ##
-        self.resnet_101_model_path = "./checkpoints/FasterRCNN_resnet101/train1/final_model.pth"  ##
+        self.model_path = None          ## 이러면 가장 최신의 모델 사용함.
+        # self.model_path = "./checkpoints/CustomFasterRCNN/train1/final_model.pth"      ##
+        # self.model_path = "./checkpoints/FasterRCNN_resnet101/train1/final_model.pth"  ##
 
         self.label2name = './data/label2name.json'
         self.label2id = './data/label2id.json'
@@ -24,7 +25,7 @@ class Args_fasterrcnn:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"        ## 디바이스 설정
 
         # Model parameters
-        self.num_classes = 93       ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
+        self.num_classes = 74       ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
 
         # Output settings
         self.save_predictions = True                        ## json 데이터 저장 여부

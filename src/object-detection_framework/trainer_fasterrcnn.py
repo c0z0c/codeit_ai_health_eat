@@ -46,7 +46,9 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
     model.train()
     running_loss = 0.0
 
-    for batch_idx, (images, targets) in enumerate(tqdm(data_loader, desc=f"Epoch {epoch}", leave=False)):
+    loop = tqdm(data_loader, desc=f"Epoch {epoch}", ncols=100)
+
+    for batch_idx, (images, targets) in enumerate(loop):
         # print(images, targets)
         images = [image.to(device) for image in images]
         targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
@@ -62,8 +64,8 @@ def train_one_epoch(model, optimizer, data_loader, device, epoch, print_freq=10)
 
         running_loss += losses.item()
 
-        if batch_idx % print_freq == 0:
-            print(f"Batch {batch_idx}/{len(data_loader)}, Loss: {losses.item():.4f}")
+        # if (batch_idx+1) % print_freq == 0:
+        loop.set_postfix(loss=losses.item())
 
     avg_loss = running_loss / len(data_loader)
     print(f"Epoch {epoch} - Average Loss: {avg_loss:.4f}")
@@ -146,9 +148,9 @@ def main(args, model_name):
     # # 체크포인트 디렉토리 생성(존재하지 않을 경우)
     # os.makedirs(args.checkpoint_dir, exist_ok=True)
 
-    ''' train1, train2 새로 훈련할때마다 새로운 폴더 만들어서 저장'''
-    base_checkpoint_dir = os.path.join(args.checkpoint_dir, model_name)
-    os.makedirs(base_checkpoint_dir, exist_ok=True)  # 상위 폴더가 없으면 생성
+    base_project_dir = "./object-detection"
+    model_project_dir = os.path.join(base_project_dir, model_name)
+    os.makedirs(model_project_dir, exist_ok=True)
 
     if args.resume and args.checkpoint_path and os.path.exists(args.checkpoint_path):
         # 학습 재개 시에는 기존 체크포인트가 있는 폴더를 사용
@@ -156,26 +158,31 @@ def main(args, model_name):
         print(f"학습 재개: 기존 체크포인트 경로 사용 - {args.checkpoint_dir}")
     else:
         # 새롭게 학습을 시작할 때만 고유한 폴더 생성
-        existing_runs = [d for d in os.listdir(base_checkpoint_dir) if re.match(r'^train\d+$', d)]
+        existing_runs = [d for d in os.listdir(model_project_dir) if re.match(r'^train\d+$', d)]
 
         if existing_runs:
             # 기존 폴더에서 가장 큰 숫자 찾기
-            run_numbers = [int(re.match(r'^train(\d+)$', d).group(1)) for d in existing_runs]
+            run_numbers = [int(re.match(rf'^train(\d+)$', d).group(1)) for d in existing_runs]
             next_run_number = max(run_numbers) + 1
         else:
             # 기존 폴더가 없으면 1부터 시작
             next_run_number = 1
 
         run_dir_name = f"train{next_run_number}"
-        args.checkpoint_dir = os.path.join(base_checkpoint_dir, run_dir_name)
+        args.checkpoint_dir = os.path.join(model_project_dir, run_dir_name)
         os.makedirs(args.checkpoint_dir, exist_ok=True)
         print(f"새로운 훈련 시작: 고유한 폴더 생성 - {args.checkpoint_dir}")
+    # 체크포인트 폴더 내부에 하위 폴더 생성
+    checkpoint_subdir = os.path.join(args.checkpoint_dir, "checkpoints")
+    os.makedirs(checkpoint_subdir, exist_ok=True)
+
+    # 실제 체크포인트 저장 경로 업데이트
+    args.actual_checkpoint_dir = checkpoint_subdir
+
 
     '''wandb 연결'''
     if args.use_wandb:
-        # wandb.init() 호출 시 실행 이름을 `run_dir_name`으로 설정하여 폴더명과 일치시킵니다.
-        # 기존 학습을 재개하는 경우, 이름은 이미 저장된 `run_dir_name`이 됩니다.
-        run_name = os.path.basename(args.checkpoint_dir)
+        run_name = model_name + '_' + os.path.basename(args.checkpoint_dir)
         wandb.init(
             project=args.wandb_project,
             entity=args.wandb_entity,
@@ -294,6 +301,8 @@ def main(args, model_name):
             if hasattr(args, 'save_metric_plots') and args.save_metric_plots:
                 plot_path = os.path.join(args.checkpoint_dir, f'metrics_epoch_{epoch + 1}.png')
                 plot_evaluation_results(detailed_results, save_path=plot_path)
+
+            # wandb에 log 업데이트
             log_dict = {
                 "epoch": epoch + 1,
                 "train_loss": train_loss,
@@ -316,7 +325,7 @@ def main(args, model_name):
         # 체크포인트 저장
         if (epoch + 1) % args.save_freq == 0:
             checkpoint_path = os.path.join(
-                args.checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth"
+                args.actual_checkpoint_dir, f"checkpoint_epoch_{epoch + 1}.pth"
             )
             save_checkpoint(model, optimizer, scheduler, epoch, val_loss, checkpoint_path)
 

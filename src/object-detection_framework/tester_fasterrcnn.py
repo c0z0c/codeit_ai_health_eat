@@ -157,13 +157,51 @@ def visualize_and_save_results(model, dataset, predictions, output_image_paths, 
 
 def main(args, model_name):
     print(f"Using device: {args.device}")
-    os.makedirs(args.prediction_output_dir, exist_ok=True)
-    if model_name == 'CustomFasterRCNN':
-        model_path = args.resnet_50_model_path
-    elif model_name =='FasterRCNN_resnet101':
-        model_path = args.resnet_101_model_path
-    # 모델 로드
+
+    base_project_dir = "./object-detection"
+    model_project_dir = os.path.join(base_project_dir, model_name)
+    if args.model_path:
+        model_path = args.model_path
+        print(f"선택된 모델: {model_path}")
+
+    else:
+        # 학습 완료된 모델들 중에서 선택
+        if os.path.exists(model_project_dir):
+            existing_runs = [d for d in os.listdir(model_project_dir) if os.path.isdir(os.path.join(model_project_dir, d))]
+            if existing_runs:
+                print(f"사용 가능한 학습된 모델들: {existing_runs}")
+                # 가장 최신 폴더 자동 선택 (또는 사용자 입력으로 선택)
+                latest_run = sorted(existing_runs)[-1]  # 알파벳순으로 마지막 = 가장 큰 번호
+                selected_run_dir = os.path.join(model_project_dir, latest_run)
+                print(f"선택된 모델 폴더: {selected_run_dir}")
+            else:
+                raise FileNotFoundError(f"학습된 모델을 찾을 수 없습니다: {model_project_dir}")
+        else:
+            raise FileNotFoundError(f"모델 폴더가 존재하지 않습니다: {model_project_dir}")
+
+        # 모델 경로 설정 (best.pt 또는 특정 체크포인트 선택)
+        best_model_files = [f for f in os.listdir(selected_run_dir) if f.startswith('best_model_map_')]
+        if best_model_files:
+            model_path = os.path.join(selected_run_dir, best_model_files[0])  # 첫 번째 best 모델 사용
+        else:
+            # checkpoints 폴더에서 최신 체크포인트 찾기
+            checkpoint_dir = os.path.join(selected_run_dir, "checkpoints")
+            if os.path.exists(checkpoint_dir):
+                checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.startswith('checkpoint_epoch_')]
+                if checkpoint_files:
+                    # 가장 큰 에포크 번호의 체크포인트 선택
+                    latest_checkpoint = sorted(checkpoint_files, key=lambda x: int(x.split('_')[-1].split('.')[0]))[-1]
+                    model_path = os.path.join(checkpoint_dir, latest_checkpoint)
+                else:
+                    raise FileNotFoundError(f"체크포인트 파일을 찾을 수 없습니다: {checkpoint_dir}")
+            else:
+                raise FileNotFoundError(f"체크포인트 폴더를 찾을 수 없습니다: {checkpoint_dir}")
+
+        print(f"사용할 모델 경로: {model_path}")
+
+
     model = load_model(model_name, model_path, args.num_classes, args.device)
+
 
     # name, category_id 변환 딕셔너리 로드
     with open(args.label2name, 'r', encoding='utf-8') as f:
@@ -207,19 +245,23 @@ def main(args, model_name):
         predictions, image_paths = run_inference(model, data_loader, args.device, args.confidence_threshold)
         # print(predictions[0])
 
+
         # JSON 저장
-        prediction_output_path = os.path.join(args.prediction_output_dir, model_name)
-        os.makedirs(prediction_output_path, exist_ok=True)
         if args.save_predictions:
-            output_json = os.path.join(prediction_output_path, "test_predictions.json")
+            predictions_dir = os.path.join(selected_run_dir, "test_predictions")
+            os.makedirs(predictions_dir, exist_ok=True)
+
+            output_json = os.path.join(predictions_dir, "test_predictions.json")
             save_predictions_to_json(predictions, image_paths, class_names, output_json, label2id_dict=label2id_dict)
+            print(f"예측 결과 저장: {output_json}")
 
         # 시각화
-        visualization_output_path = os.path.join(args.visualization_output_dir,model_name)
-        os.makedirs(visualization_output_path, exist_ok=True)
-
         if args.save_visualizations:
-            visualize_and_save_results(model, dataset, predictions, visualization_output_path, class_names, args)
+            visualizations_dir = os.path.join(selected_run_dir, "test_visualizations")
+            os.makedirs(visualizations_dir, exist_ok=True)
+
+            visualize_and_save_results(model, dataset, predictions, visualizations_dir, class_names, args)
+            print(f"시각화 결과 저장: {visualizations_dir}")
 
         print("Inference completed!")
 
@@ -245,7 +287,7 @@ if __name__ == "__main__":
             self.device = "cuda" if torch.cuda.is_available() else "cpu"  ## 디바이스 설정
 
             # Model parameters
-            self.num_classes = 93  ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
+            self.num_classes = 72  ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
 
             # Output settings
             self.save_predictions = True  ## json 데이터 저장 여부

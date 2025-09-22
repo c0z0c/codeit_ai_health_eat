@@ -1,13 +1,13 @@
 import json
 import pandas as pd
-
+import os
 
 # with open('./predictions/test_predictions.json', 'r', encoding='utf-8') as f:
 #     anno = json.load(f)
 #
 #     df1 = pd.read_json(anno)
-
-df = pd.read_json('./predictions/fasterrcnn_resnet101/test_predictions.json', encoding='utf-8', orient='records')
+root_dir = './object-detection/FasterRCNN_resnet101/train8/test_predictions'
+df = pd.read_json(os.path.join(root_dir,'test_predictions.json'), encoding='utf-8', orient='records')
 print(df.head())
 
 bbox_expanded = df['bbox'].apply(pd.Series)
@@ -23,8 +23,7 @@ df_final = df_final[['annotation_id', 'image_id', 'category_id', 'bbox_x', 'bbox
 print(df_final.head())
 
 # CSV 파일로 저장할 경로 및 이름 지정
-output_csv_file_path = "./predictions/fasterrcnn_resnet101/output_data_resnet101.csv"
-
+output_csv_file_path = os.path.join(root_dir,"output_data_resnet101.csv")
 try:
     # to_csv() 메서드를 사용하여 DataFrame을 CSV 파일로 저장합니다.
     # index=False: DataFrame의 인덱스를 CSV 파일에 저장하지 않습니다. (보통 이렇게 합니다)
