@@ -38,7 +38,7 @@ sys.path.append(current_dir)
 from urllib.request import urlretrieve
 
 helper_path = os.path.join(current_dir, "helper_c0z0c_dev.py")
-url = "https://raw.githubusercontent.com/c0z0c/jupyter_hangul/refs/heads/beta/helper_c0z0c_dev.py"
+url = "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat/refs/heads/alpha/src/python_modules/utils/helper_c0z0c_dev.py"
 urlretrieve(url, helper_path)
 
 import importlib
