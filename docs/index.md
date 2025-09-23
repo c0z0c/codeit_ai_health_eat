@@ -18,10 +18,10 @@ pragma: no-cache
 
 | 역할 | 담당자 | 핵심 업무 |
 |------|--------|-----------|
-| **Project Manager** | 이건희 | 프로젝트 총괄 관리, 일정 조율 |
+| **Project Manager** | [이건희](https://github.com/Lee-keonhee) | 프로젝트 총괄 관리, 일정 조율 |
 | **Data Engineer** | 서동일 | EDA, 데이터 전처리, 증강 기법 |
 | **Model Architect** | [김명환](https://c0z0c.github.io/) | YOLO v8 + EfficientNet-B3 설계 |
-| **Experimentation Lead** | 김민혁 | 실험 설계, Kaggle 제출, 성능 튜닝 |
+| **Experimentation Lead** | [김민혁](https://github.com/cmustard7) | 실험 설계, Kaggle 제출, 성능 튜닝 |
 | **Quality Assurance** | 이현재 | 코드 품질, 문서화, 결과 검증 |
 
 
