@@ -11,6 +11,8 @@ from PyQt5.QtGui import QPixmap, QPainter, QPen, QFont, QColor
 from PIL import Image
 import numpy as np
 from PillAnalysisEngine import PillAnalysisEngine
+from python_modules.utils.debug_log import *
+
 
 def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=10, print_value=True, max_length=30):
     """
@@ -25,7 +27,7 @@ def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=10, print
     if isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, (dict, list)):
-                print(f"{indent}|-- {key}")
+                DLOG.log(LV.TRACE, f"{indent}|-- {key}")
                 print_json_tree(value, indent + "    ", max_depth, _depth + 1, list_count, print_value, max_length)
             else:
                 if print_value:
@@ -33,16 +35,16 @@ def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=10, print
                         display_value = f'{value[:max_length]}...'
                     else:
                         display_value = value
-                    print(f"{indent}|-- {key}({type(value).__name__}): {display_value}")
+                    DLOG.log(LV.TRACE, f"{indent}|-- {key}({type(value).__name__}): {display_value}")
                 else:
-                    print(f"{indent}|-- {key}({type(value).__name__})")
+                    DLOG.log(LV.TRACE, f"{indent}|-- {key}({type(value).__name__})")
     elif isinstance(data, list):
         if len(data) > list_count:
-            print(f"{indent}|-- [list] ({len(data)} items)")
+            DLOG.log(LV.TRACE, f"{indent}|-- [list] ({len(data)} items)")
         else:
             for i, item in enumerate(data):
                 if isinstance(item, (dict, list)):
-                    print(f"{indent}|-- [{i}]")
+                    DLOG.log(LV.TRACE, f"{indent}|-- [{i}]")
                     print_json_tree(item, indent + "    ", max_depth, _depth + 1, list_count, print_value, max_length)
                 else:
                     if print_value:
@@ -50,18 +52,18 @@ def print_json_tree(data, indent="", max_depth=4, _depth=0, list_count=10, print
                             display_item = f'{item[:max_length]}...'
                         else:
                             display_item = item
-                        print(f"{indent}|-- [{i}]({type(item).__name__}): {display_item}")
+                        DLOG.log(LV.TRACE, f"{indent}|-- [{i}]({type(item).__name__}): {display_item}")
                     else:
-                        print(f"{indent}|-- [{i}]({type(item).__name__})")
+                        DLOG.log(LV.TRACE, f"{indent}|-- [{i}]({type(item).__name__})")
     else:
         if print_value:
             if isinstance(data, str) and len(data) > max_length:
                 display_data = f'{data[:max_length]}...'
             else:
                 display_data = data
-            print(f"{indent}{type(data).__name__}: {display_data}")
+            DLOG.log(LV.TRACE, f"{indent}{type(data).__name__}: {display_data}")
         else:
-            print(f"{indent}{type(data).__name__}")
+            DLOG.log(LV.TRACE, f"{indent}{type(data).__name__}")
 
 class AnalysisWorker(QThread):
     """분석 작업을 위한 워커 스레드"""
@@ -471,12 +473,12 @@ def download_model_files(url, target):
 
     # 파일이 이미 존재하면 건너뜀
     if os.path.exists(target):
-        print(f"파일이 이미 존재합니다: {os.path.basename(target)}")
+        DLOG.log(LV.TRACE, f"파일이 이미 존재합니다: {os.path.basename(target)}")
         return True
 
     try:
         filename = os.path.basename(target)
-        # print(f"다운로드 시작: {filename}")
+        # DLOG.log(LV.TRACE, f"다운로드 시작: {filename}")
         
         def progress_hook(block_num, block_size, total_size):
             if total_size > 0:
@@ -495,12 +497,12 @@ def download_model_files(url, target):
                 sys.stdout.flush()
         
         urllib.request.urlretrieve(url, target, reporthook=progress_hook)
-        print('')
-        #print(f"\n다운로드 완료: {filename}")
+        DLOG.log(LV.TRACE, '')
+        #DLOG.log(LV.TRACE, f"\n다운로드 완료: {filename}")
         return True
         
     except Exception as e:
-        print(f"\n다운로드 실패: {filename} - {e}")
+        DLOG.log(LV.TRACE, f"\n다운로드 실패: {filename} - {e}")
         if os.path.exists(target):
             os.remove(target)
         return False
@@ -516,37 +518,37 @@ def extract_model_from_split_files():
         
         # best.pt 파일이 이미 존재하면 종료
         if os.path.exists(model_path):
-            print(f"모델 파일이 이미 존재합니다: {model_path}")
+            DLOG.log(LV.TRACE, f"모델 파일이 이미 존재합니다: {model_path}")
             return True
             
         # 분할 파일들 찾기
         split_files = glob.glob(os.path.join(model_dir, "best.tar.*"))
         if not split_files:
-            print(f"분할 파일을 찾을 수 없습니다: {model_dir}/best.tar.*")
+            DLOG.log(LV.TRACE, f"분할 파일을 찾을 수 없습니다: {model_dir}/best.tar.*")
             return False
             
         # 파일명 정렬 (best.tar.001, best.tar.002, ...)
         split_files.sort()
-        print(f"찾은 분할 파일들: {[os.path.basename(f) for f in split_files]}")
+        DLOG.log(LV.TRACE, f"찾은 분할 파일들: {[os.path.basename(f) for f in split_files]}")
         
         # 분할된 파일들을 하나로 합치기
         merged_tar_path = os.path.join(model_dir, "best.tar")
-        print(f"분할 파일들을 합치는 중...")
+        DLOG.log(LV.TRACE, f"분할 파일들을 합치는 중...")
         
         with open(merged_tar_path, 'wb') as merged_file:
             for split_file in split_files:
-                print(f"  - {os.path.basename(split_file)} 합치는 중...")
+                DLOG.log(LV.TRACE, f"  - {os.path.basename(split_file)} 합치는 중...")
                 with open(split_file, 'rb') as f:
                     merged_file.write(f.read())
         
-        print(f"합친 tar 파일 생성 완료: {merged_tar_path}")
+        DLOG.log(LV.TRACE, f"합친 tar 파일 생성 완료: {merged_tar_path}")
         
         # tar 파일 압축 해제
-        print("tar 파일 압축 해제 중...")
+        DLOG.log(LV.TRACE, "tar 파일 압축 해제 중...")
         with tarfile.open(merged_tar_path, 'r') as tar:
             # tar 파일 내용 확인
             members = tar.getnames()
-            print(f"tar 파일 내용: {members}")
+            DLOG.log(LV.TRACE, f"tar 파일 내용: {members}")
             
             # best.pt 파일 찾기
             pt_file = None
@@ -571,27 +573,27 @@ def extract_model_from_split_files():
                     except:
                         pass
                 
-                print(f"best.pt 파일 추출 완료: {model_path}")
+                DLOG.log(LV.TRACE, f"best.pt 파일 추출 완료: {model_path}")
             else:
-                print("tar 파일에서 best.pt 파일을 찾을 수 없습니다.")
+                DLOG.log(LV.TRACE, "tar 파일에서 best.pt 파일을 찾을 수 없습니다.")
                 return False
         
         # 임시 tar 파일 삭제
         if os.path.exists(merged_tar_path):
             os.remove(merged_tar_path)
-            print("임시 tar 파일 삭제 완료")
+            DLOG.log(LV.TRACE, "임시 tar 파일 삭제 완료")
             
         return os.path.exists(model_path)
         
     except Exception as e:
-        print(f"모델 파일 추출 중 오류 발생: {str(e)}")
+        DLOG.log(LV.TRACE, f"모델 파일 추출 중 오류 발생: {str(e)}")
         return False
 
 def main():
     # 모델 파일 자동 다운로드 및 준비
-    print("="*60)
-    print("알약 분석기 시작")
-    print("="*60)
+    DLOG.log(LV.TRACE, "="*60)
+    DLOG.log(LV.TRACE, "알약 분석기 시작")
+    DLOG.log(LV.TRACE, "="*60)
     
     py_dir = os.path.dirname(os.path.abspath(__file__))
     urls = [{'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.001",
@@ -610,28 +612,28 @@ def main():
     model_path = os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.pt")
     
     if not os.path.exists(model_path):
-        print("모델 파일이 없습니다. 자동으로 다운로드를 시작합니다...")
-        print("\n다운로드할 파일들:")
+        DLOG.log(LV.TRACE, "모델 파일이 없습니다. 자동으로 다운로드를 시작합니다...")
+        DLOG.log(LV.TRACE, "\n다운로드할 파일들:")
         for url in urls:
-            print(f"- {os.path.basename(url['target'])}")
-        print("\n이 파일들은 GitHub 파일 크기 제한으로 인해 분할되어 저장되었습니다.")
+            DLOG.log(LV.TRACE, f"- {os.path.basename(url['target'])}")
+        DLOG.log(LV.TRACE, "\n이 파일들은 GitHub 파일 크기 제한으로 인해 분할되어 저장되었습니다.")
         
         # 2. 모델 파일들 다운로드
         for url in urls:
             for i in range(3):  # 최대 3회 재시도
                 if download_model_files(url['url'], url['target']):
                     break
-                print(f"재시도 {i+1}/3...")
+                DLOG.log(LV.TRACE, f"재시도 {i+1}/3...")
     
     # 3. 분할된 tar 파일들을 합쳐서 best.pt 모델 파일 생성
-    print("\n모델 파일 확인 및 추출 중...")
+    DLOG.log(LV.TRACE, "\n모델 파일 확인 및 추출 중...")
     if not extract_model_from_split_files():
-        print("모델 파일 추출에 실패했습니다.")
+        DLOG.log(LV.TRACE, "모델 파일 추출에 실패했습니다.")
         input("Enter 키를 눌러 종료하세요...")
         return
     
-    print("모델 파일 준비 완료")
-    print("="*60)
+    DLOG.log(LV.TRACE, "모델 파일 준비 완료")
+    DLOG.log(LV.TRACE, "="*60)
     
     # 4. GUI 애플리케이션 시작
     app = QApplication(sys.argv)
@@ -641,4 +643,12 @@ def main():
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
+    py_dir = os.path.dirname(os.path.abspath(__file__))
+    DLOG.set_head("알약분류")
+    DLOG.set_log_dir(os.path.join(py_dir, "logs"))
+    DLOG.set_file_enable(True)
+    DLOG.log(LV.TRACE, "프로그램 시작")
+    
     main()
+
+    DLOG.log(LV.TRACE, "프로그램 종료")

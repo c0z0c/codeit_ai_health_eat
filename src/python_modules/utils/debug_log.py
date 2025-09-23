@@ -131,6 +131,6 @@ DLOG.set_file_enable(False)
 
 # Example usage
 if __name__ == "__main__":
-    DLOG.log("테스트 로그입니다.")
+    DLOG.log(LV.TRACE, "테스트 로그입니다.")
     DLOG.log(LV.TRACE, "테스트 로그입니다.")
     DLOG.log(LV.TRACE, f"end of {__file__}")
