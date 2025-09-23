@@ -9,6 +9,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
+from torchvision.transforms import v2
 from torchvision.transforms import functional as TF
 from ultralytics import YOLO
 
@@ -28,13 +29,14 @@ import matplotlib.pyplot as plt
 
 # --- 시간 관련 ---
 import pytz
+from python_modules.utils.debug_log import *
 
 class PillAnalysisEngine:
-    def __init__(self):
+    def __init__(self, model_1_stage_path, model_2_stage_path=None):
         def drive_root():
             """
-            Google Drive의 최상위 경로를 반환하는 함수입니다.
-            - 로컬 환경(Windows): D:\GoogleDrive
+            실행 파일(main.py)을 기준으로 2개 상위 디렉토리를 반환하는 함수입니다.
+            - 로컬 환경: main.py가 있는 디렉토리의 2단계 상위
             - Colab 환경: /content/drive/MyDrive
             프로젝트 내에서 데이터, 모델, 설정 파일 등 경로를 일관되게 관리할 때 사용합니다.
             """    
@@ -45,9 +47,15 @@ class PillAnalysisEngine:
             except ImportError:
                 COLAB_AVAILABLE = False
             
-            root_path = os.path.join(Path.cwd().drive + '\\', "GoogleDrive")
             if COLAB_AVAILABLE:
                 root_path = os.path.join("/content/drive/MyDrive")
+            else:
+                # 실행 파일(main.py)의 경로를 기준으로 2단계 상위 디렉토리
+                main_script_path = os.path.abspath(sys.argv[0])
+                main_script_dir = os.path.dirname(main_script_path)  # src 디렉토리
+                project_root = os.path.dirname(main_script_dir)      # codeit_ai_health_eat 디렉토리
+                root_path = os.path.dirname(project_root)            # GoogleDrive 디렉토리
+            
             return root_path
         
         self.DEBUG_ON = True
@@ -57,21 +65,33 @@ class PillAnalysisEngine:
         # --- GPU 설정 ---
         self.__device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.__device_cpu = torch.device('cpu')
-        self.project_path = os.path.join(drive_root(), "codeit_ai_health_eat")
-        self.modeling_path = os.path.join(self.project_path, "src", "python_modules", "modeling")
-        self.data_path = os.path.join(self.project_path, "src", "python_modules", "data")
         
+        self.main_script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        self.project_path = os.path.join(drive_root(), "codeit_ai_health_eat")
+        self.modeling_path = os.path.join(self.main_script_dir, "python_modules", "modeling")
+        self.data_path = os.path.join(self.main_script_dir, "python_modules", "data")
+        self.model_1_stage_path = model_1_stage_path
+        self.model_2_stage_path = model_2_stage_path
+
         if self.DEBUG_ON:
-            print(self.project_path)
-            print(self.modeling_path)
-            print(self.data_path)
+            DLOG.log(LV.TRACE,f"실행 스크립트: {sys.argv[0]}")
+            DLOG.log(LV.TRACE,f"실행 스크립트 디렉토리: {self.main_script_dir}")
+            DLOG.log(LV.TRACE,f"Drive Root: {drive_root()}")
+            DLOG.log(LV.TRACE,f"프로젝트 경로: {self.project_path}")
+            DLOG.log(LV.TRACE,f"모델링 경로: {self.modeling_path}")
+            DLOG.log(LV.TRACE,f"데이터 경로: {self.data_path}")
+            DLOG.log(LV.TRACE,f"1단계 모델 경로: {self.model_1_stage_path}")
+            DLOG.log(LV.TRACE,f"2단계 모델 경로: {self.model_2_stage_path}")
             
         self.categorys = []
         self.database = self.init_database() # DB 초기화 클래스 개수 확인을 위하여 가장 먼저 로딩되어야함.
-        self.model_1_stage = self.load_1_stage_model_fasterrcnn_resnet101()
-        self.model_2_stage = None
-        #self.model_2_stage = self.load_2_stage_model_resnet()
-        #self.model_2_stage = self.load_2_stage_model_efficientnet_b3()
+
+        if self.model_2_stage_path is None:
+            self.model_1_stage = self.load_1_stage_model_fasterrcnn_resnet101()
+            self.model_2_stage = None
+        else:
+            self.model_2_stage = self.load_2_stage_model_resnet()
+            self.model_2_stage = self.load_2_stage_model_efficientnet_b3()
         
         self.transform_fasterrcnn_resnet101 = v2.Compose([
             v2.ToImage(),
@@ -202,14 +222,13 @@ class PillAnalysisEngine:
         """
         image = validated_image
         # 이미지 텐서 변환
-        pillEngine.model_1_stage.eval()
+        self.model_1_stage.eval()
         with torch.no_grad():
-            image_tensor = pillEngine.transform_fasterrcnn_resnet101(image)
+            image_tensor = self.transform_fasterrcnn_resnet101(image)
             images_batch = [image_tensor]
-            img_paths_batch = [test_images[0]]
             
-            result_detections = pillEngine.model_1_stage(images_batch)
-            print("result_detections",result_detections)
+            result_detections = self.model_1_stage(images_batch)
+            # DLOG.log(LV.TRACE,"result_detections",result_detections)
             
             detections={}
             detections['org_img'] = image
@@ -221,14 +240,14 @@ class PillAnalysisEngine:
                     label = label.cpu().numpy().astype(int)
                     box = res['boxes'][i].cpu().numpy().astype(int)
                     score = res['scores'][i].cpu().numpy().astype(float)
-                    #print(f"label: {label}, box: {box}, score: {score}")
+                    #DLOG.log(LV.TRACE,f"label: {label}, box: {box}, score: {score}")
                     
                     x1, y1, x2, y2 = box
                     w = x2-x1
                     h = y2-y1
                     cropped = image.crop((x1, y1, x2, y2))
                     
-                    class_name = pillEngine.database['categorys'][label]
+                    class_name = self.database['categorys'][label]
                     class_probabilitie = score
                     
                     bbox_info ={
@@ -243,7 +262,7 @@ class PillAnalysisEngine:
                         'class_score': score,
                     }
                     detections['bboxs'].append(bbox_info)
-                    #print(bbox_info)
+                    #DLOG.log(LV.TRACE,bbox_info)
                     i += 1
 
         return detections
@@ -268,7 +287,7 @@ class PillAnalysisEngine:
         detections['org_img'] = current_img
         detections['bboxs'] = []
         for box in result_detections[0].boxes:
-            #print(box.xyxy, box.conf, box.cls)
+            #DLOG.log(LV.TRACE,box.xyxy, box.conf, box.cls)
             xyxy = box.xyxy[0].cpu().numpy().astype(int)
             cls = int(box.cls.item())
             score = box.conf.item()
@@ -376,19 +395,19 @@ class PillAnalysisEngine:
             ddi_result = self.find_ddi(category_ids)
             
             for drug in ddi_result['drug']:
-                #print(drug['category_id'], drug['di_edi_code'], drug['drug_N'], drug['dl_name'])
+                #DLOG.log(LV.TRACE,drug['category_id'], drug['di_edi_code'], drug['drug_N'], drug['dl_name'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == drug['category_id']:
                         box['drug_info'] = drug
                 
             for ddi in ddi_result['ddi']:
-                #print(ddi['category_id'], ddi['제품코드A'], ddi['제품명A'], ddi['제품코드B'], ddi['제품명B'])
+                #DLOG.log(LV.TRACE,ddi['category_id'], ddi['제품코드A'], ddi['제품명A'], ddi['제품코드B'], ddi['제품명B'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == ddi['category_id']:
                         box['ddi'] = ddi
                 
             for ddi_drug in ddi_result['ddi_drug']:
-                #print(ddi_drug['category_id'], ddi_drug['제품코드A'], ddi_drug['제품명A'], ddi_drug['제품코드B'], ddi_drug['제품명B'])
+                #DLOG.log(LV.TRACE,ddi_drug['category_id'], ddi_drug['제품코드A'], ddi_drug['제품명A'], ddi_drug['제품코드B'], ddi_drug['제품명B'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == ddi_drug['category_id']:
                         box['ddi_drug'] = ddi_drug            
@@ -412,7 +431,7 @@ class PillAnalysisEngine:
         df_drug = df_drug[df_drug['category_id'].isin(category_ids)]
         # df_drug.head_att(10)
         
-        # print('-' * 80)
+        # DLOG.log(LV.TRACE,'-' * 80)
 
         df_drug['code'] = df_drug['di_edi_code'].str.split(',').str[0].astype(int)
         codes = df_drug['code'].tolist()
@@ -424,7 +443,8 @@ class PillAnalysisEngine:
             mask_a = df['제품코드A'] == code_a
             for code_b in codes:
                 mask_b = df['제품코드B'] == code_b
-                if code_a == code_b: continue
+                if code_a == code_b: 
+                    continue
                 # 매칭되는 행들을 가져오기
                 matched_rows = df[mask_a & mask_b].copy()
                 if not matched_rows.empty:
@@ -448,12 +468,12 @@ class PillAnalysisEngine:
         result['ddi'] = df_ddi.drop_duplicates().copy().to_dict(orient='records')
         result['ddi_drug'] = df_drug_ddi.drop_duplicates().copy().to_dict(orient='records')
         
-        # print('ddi=',len(result['ddi']))
+        # DLOG.log(LV.TRACE,'ddi=',len(result['ddi']))
         # result['ddi'].head_att(20)
-        # print('-' * 80)
-        # print('ddi_drug=',len(result['ddi_drug']))
+        # DLOG.log(LV.TRACE,'-' * 80)
+        # DLOG.log(LV.TRACE,'ddi_drug=',len(result['ddi_drug']))
         # result['ddi_drug'].head_att(20)
-        # print('=' * 80)
+        # DLOG.log(LV.TRACE,'=' * 80)
         
         return result
 
@@ -507,7 +527,7 @@ class PillAnalysisEngine:
         df_drug_sorted = df_drug.sort_values('category_id')
         categorys = df_drug_sorted['category_id'].unique().tolist()
         
-        # print("categorys:", categorys)
+        # DLOG.log(LV.TRACE,"categorys:", categorys)
         
         database = {
             "categorys": categorys,
@@ -518,25 +538,41 @@ class PillAnalysisEngine:
         return database
     
     def load_1_stage_model(self):
-        model_path = os.path.join(self.modeling_path, 
-                                            "yolo",
-                                            "yolov8m_yolo_noresize_one_class_20250915_0858",
-                                            "weights",
-                                            "best.pt"
-                                            )
-
-        if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+        """
+        YOLO 모델을 로드하여 1단계 객체 탐지 모델로 설정합니다.
+        이 모델은 약물(알약) 객체를 탐지하는 데 사용됩니다.
+        """
+        # 모델 파일 경로 설정 (생성자에서 전달된 경로 사용)
+        model_path = self.model_1_stage_path
         
+        # 디버그 모드일 경우 모델 파일 존재 여부와 경로 출력
+        if self.DEBUG_ON:
+            DLOG.log(LV.TRACE, os.path.exists(model_path), model_path)
+        
+        # YOLO 모델 생성 및 로드
         model_1_stage = YOLO(model_path)
+        
+        # 모델을 지정된 디바이스(CPU 또는 GPU)로 이동
         model_1_stage.to(self.__device)
+        
+        # 모델을 평가 모드로 설정 (추론 시 사용)
         model_1_stage.eval()
+        
+        # 로드된 모델 반환
         return model_1_stage
     
     def load_1_stage_model_fasterrcnn_resnet101(self):
+        """
+        Faster R-CNN ResNet101 모델을 로드하여 1단계 객체 탐지 모델로 설정합니다.
+        이 모델은 약물(알약) 객체를 탐지하는 데 사용됩니다.
+        """
+        # 필요한 모델 관련 모듈을 임포트
         from models import CustomFasterRCNN, FasterRCNN_resnet101, get_model
-        #model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
         
+        # 주석 처리된 코드: 직접 모델 생성 (현재 사용하지 않음)
+        # model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
+        
+        # 데이터베이스에 사용할 카테고리 ID 리스트 설정 (약물 클래스 ID들)
         categorys = [
             3543, 10220, 16547, 29344, 3482, 20237, 25468, 30307, 16231, 34596,
             19606, 21025, 6562, 23202, 27732, 35205, 2482, 13394, 23222, 25437,
@@ -549,31 +585,45 @@ class PillAnalysisEngine:
         ]
         self.database['categorys'] = categorys
         
+        # 사전 학습된 모델 파일의 경로 설정
         model_path = os.path.join(self.modeling_path,
-                                            "fasterrcnn_resnet101",
-                                            "best_model_map_0.9448",
-                                            "best_model_map_0.9448.pth"
-                                            )
+                                    "fasterrcnn_resnet101",
+                                    "best_model_map_0.9448",
+                                    "best_model_map_0.9448.pth"
+                                    )
+        
+        # 디버그 모드일 경우 모델 파일 존재 여부와 경로 출력
         if self.DEBUG_ON:
             print(os.path.exists(model_path), model_path)
 
-        #model.load_state_dict(torch.load(model_path, map_location=device))
+        # 주석 처리된 코드: 모델 상태 로드 (현재 사용하지 않음)
+        # model.load_state_dict(torch.load(model_path, map_location=device))
         
+        # 주석 처리된 코드: 모델 정보 로드 (현재 사용하지 않음)
         # model_1_stage_stage_state, model_1_stage_info = load_model_dict(model_path)
         
-        #model.load_state_dict(torch.load(model_path, map_location=device))
+        # 주석 처리된 코드: 모델 상태 로드 (현재 사용하지 않음)
+        # model.load_state_dict(torch.load(model_path, map_location=device))
         
+        # Faster R-CNN ResNet101 모델 생성 (클래스 수: 74)
         model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
         
+        # 모델 상태를 파일에서 로드 (지정된 디바이스로 매핑)
         model_1_stage_state = torch.load(model_path, map_location=self.__device)
         
+        # 로드된 상태를 모델에 적용
         model_1_stage.load_state_dict(model_1_stage_state)
         
-        model_1_stage.to(self.__device)        
+        # 모델을 지정된 디바이스(CPU 또는 GPU)로 이동
+        model_1_stage.to(self.__device)    
         
+        # 모델을 평가 모드로 설정 (추론 시 사용)
         model_1_stage.eval()
-        #print("load_1_stage_model_fasterrcnn_resnet101:", model_1_stage)
         
+        # 주석 처리된 코드: 모델 정보 출력 (현재 사용하지 않음)
+        # print("load_1_stage_model_fasterrcnn_resnet101:", model_1_stage)
+        
+        # 로드된 모델 반환
         return model_1_stage
     
     def load_2_stage_model_efficientnet_b3(self):
@@ -598,7 +648,7 @@ class PillAnalysisEngine:
                                             "best.pth"
                                             )
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
 
         NUM_CLASSES = len(self.database['categorys'])
         model_2_stage_state, model_2_stage_info = load_model_dict(model_path)
@@ -624,12 +674,10 @@ class PillAnalysisEngine:
             model_info['file_name'] = os.path.basename(load_path)
             return model_state, model_info
         
-        model_path = os.path.join(self.modeling_path,
-                                            "resnet101_118_classify_02_20250922_112335",
-                                            "best.pth"
-                                            )
+        model_path = self.model_2_stage_path
+        
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
 
         NUM_CLASSES = len(self.database['categorys'])
         model_2_stage_state, model_2_stage_info = load_model_dict(model_path)
@@ -875,8 +923,20 @@ class PillAnalysisEngine:
             rows.append(row)
             annotation_id += 1
         return annotation_id, rows
-
+    
 # # 이미지 파일 경로를 이미지로 변환
-# image_path = test_images[0]
-# pillEngine = PillAnalysisEngine()
-# validated_image = pillEngine.validate_image(image_path)    
+
+if __name__ == "__main__":
+    
+    py_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    model_1_stage_path=None
+    model_2_stage_path=None
+    
+    model_1_stage_path = os.path.join(py_dir,"python_modules","modeling","fasterrcnn_resnet101","best.pt")
+    sample_path = os.path.join(py_dir,"python_modules","sampledata","1.png")
+    
+    engine = PillAnalysisEngine(model_1_stage_path)
+    result_json = engine.analyze_image(sample_path)
+    DLOG.log(LV.TRACE,result_json)
+    
