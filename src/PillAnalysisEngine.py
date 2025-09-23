@@ -29,13 +29,14 @@ import matplotlib.pyplot as plt
 
 # --- 시간 관련 ---
 import pytz
+from python_modules.utils.debug_log import *
 
 class PillAnalysisEngine:
     def __init__(self, model_1_stage_path, model_2_stage_path=None):
         def drive_root():
             """
-            Google Drive의 최상위 경로를 반환하는 함수입니다.
-            - 로컬 환경(Windows): D:\GoogleDrive
+            실행 파일(main.py)을 기준으로 2개 상위 디렉토리를 반환하는 함수입니다.
+            - 로컬 환경: main.py가 있는 디렉토리의 2단계 상위
             - Colab 환경: /content/drive/MyDrive
             프로젝트 내에서 데이터, 모델, 설정 파일 등 경로를 일관되게 관리할 때 사용합니다.
             """    
@@ -46,9 +47,15 @@ class PillAnalysisEngine:
             except ImportError:
                 COLAB_AVAILABLE = False
             
-            root_path = os.path.join(Path.cwd().drive + '\\', "GoogleDrive")
             if COLAB_AVAILABLE:
                 root_path = os.path.join("/content/drive/MyDrive")
+            else:
+                # 실행 파일(main.py)의 경로를 기준으로 2단계 상위 디렉토리
+                main_script_path = os.path.abspath(sys.argv[0])
+                main_script_dir = os.path.dirname(main_script_path)  # src 디렉토리
+                project_root = os.path.dirname(main_script_dir)      # codeit_ai_health_eat 디렉토리
+                root_path = os.path.dirname(project_root)            # GoogleDrive 디렉토리
+            
             return root_path
         
         self.DEBUG_ON = True
@@ -58,16 +65,23 @@ class PillAnalysisEngine:
         # --- GPU 설정 ---
         self.__device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.__device_cpu = torch.device('cpu')
+        
+        self.main_script_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
         self.project_path = os.path.join(drive_root(), "codeit_ai_health_eat")
-        self.modeling_path = os.path.join(self.project_path, "src", "python_modules", "modeling")
-        self.data_path = os.path.join(self.project_path, "src", "python_modules", "data")
+        self.modeling_path = os.path.join(self.main_script_dir, "python_modules", "modeling")
+        self.data_path = os.path.join(self.main_script_dir, "python_modules", "data")
         self.model_1_stage_path = model_1_stage_path
         self.model_2_stage_path = model_2_stage_path
 
         if self.DEBUG_ON:
-            print(self.project_path)
-            print(self.modeling_path)
-            print(self.data_path)
+            DLOG.log(LV.TRACE,f"실행 스크립트: {sys.argv[0]}")
+            DLOG.log(LV.TRACE,f"실행 스크립트 디렉토리: {self.main_script_dir}")
+            DLOG.log(LV.TRACE,f"Drive Root: {drive_root()}")
+            DLOG.log(LV.TRACE,f"프로젝트 경로: {self.project_path}")
+            DLOG.log(LV.TRACE,f"모델링 경로: {self.modeling_path}")
+            DLOG.log(LV.TRACE,f"데이터 경로: {self.data_path}")
+            DLOG.log(LV.TRACE,f"1단계 모델 경로: {self.model_1_stage_path}")
+            DLOG.log(LV.TRACE,f"2단계 모델 경로: {self.model_2_stage_path}")
             
         self.categorys = []
         self.database = self.init_database() # DB 초기화 클래스 개수 확인을 위하여 가장 먼저 로딩되어야함.
@@ -214,7 +228,7 @@ class PillAnalysisEngine:
             images_batch = [image_tensor]
             
             result_detections = self.model_1_stage(images_batch)
-            # print("result_detections",result_detections)
+            # DLOG.log(LV.TRACE,"result_detections",result_detections)
             
             detections={}
             detections['org_img'] = image
@@ -226,7 +240,7 @@ class PillAnalysisEngine:
                     label = label.cpu().numpy().astype(int)
                     box = res['boxes'][i].cpu().numpy().astype(int)
                     score = res['scores'][i].cpu().numpy().astype(float)
-                    #print(f"label: {label}, box: {box}, score: {score}")
+                    #DLOG.log(LV.TRACE,f"label: {label}, box: {box}, score: {score}")
                     
                     x1, y1, x2, y2 = box
                     w = x2-x1
@@ -248,7 +262,7 @@ class PillAnalysisEngine:
                         'class_score': score,
                     }
                     detections['bboxs'].append(bbox_info)
-                    #print(bbox_info)
+                    #DLOG.log(LV.TRACE,bbox_info)
                     i += 1
 
         return detections
@@ -273,7 +287,7 @@ class PillAnalysisEngine:
         detections['org_img'] = current_img
         detections['bboxs'] = []
         for box in result_detections[0].boxes:
-            #print(box.xyxy, box.conf, box.cls)
+            #DLOG.log(LV.TRACE,box.xyxy, box.conf, box.cls)
             xyxy = box.xyxy[0].cpu().numpy().astype(int)
             cls = int(box.cls.item())
             score = box.conf.item()
@@ -381,19 +395,19 @@ class PillAnalysisEngine:
             ddi_result = self.find_ddi(category_ids)
             
             for drug in ddi_result['drug']:
-                #print(drug['category_id'], drug['di_edi_code'], drug['drug_N'], drug['dl_name'])
+                #DLOG.log(LV.TRACE,drug['category_id'], drug['di_edi_code'], drug['drug_N'], drug['dl_name'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == drug['category_id']:
                         box['drug_info'] = drug
                 
             for ddi in ddi_result['ddi']:
-                #print(ddi['category_id'], ddi['제품코드A'], ddi['제품명A'], ddi['제품코드B'], ddi['제품명B'])
+                #DLOG.log(LV.TRACE,ddi['category_id'], ddi['제품코드A'], ddi['제품명A'], ddi['제품코드B'], ddi['제품명B'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == ddi['category_id']:
                         box['ddi'] = ddi
                 
             for ddi_drug in ddi_result['ddi_drug']:
-                #print(ddi_drug['category_id'], ddi_drug['제품코드A'], ddi_drug['제품명A'], ddi_drug['제품코드B'], ddi_drug['제품명B'])
+                #DLOG.log(LV.TRACE,ddi_drug['category_id'], ddi_drug['제품코드A'], ddi_drug['제품명A'], ddi_drug['제품코드B'], ddi_drug['제품명B'])
                 for box in classifications['bboxs']:
                     if box['class_name'] == ddi_drug['category_id']:
                         box['ddi_drug'] = ddi_drug            
@@ -417,7 +431,7 @@ class PillAnalysisEngine:
         df_drug = df_drug[df_drug['category_id'].isin(category_ids)]
         # df_drug.head_att(10)
         
-        # print('-' * 80)
+        # DLOG.log(LV.TRACE,'-' * 80)
 
         df_drug['code'] = df_drug['di_edi_code'].str.split(',').str[0].astype(int)
         codes = df_drug['code'].tolist()
@@ -454,12 +468,12 @@ class PillAnalysisEngine:
         result['ddi'] = df_ddi.drop_duplicates().copy().to_dict(orient='records')
         result['ddi_drug'] = df_drug_ddi.drop_duplicates().copy().to_dict(orient='records')
         
-        # print('ddi=',len(result['ddi']))
+        # DLOG.log(LV.TRACE,'ddi=',len(result['ddi']))
         # result['ddi'].head_att(20)
-        # print('-' * 80)
-        # print('ddi_drug=',len(result['ddi_drug']))
+        # DLOG.log(LV.TRACE,'-' * 80)
+        # DLOG.log(LV.TRACE,'ddi_drug=',len(result['ddi_drug']))
         # result['ddi_drug'].head_att(20)
-        # print('=' * 80)
+        # DLOG.log(LV.TRACE,'=' * 80)
         
         return result
 
@@ -513,7 +527,7 @@ class PillAnalysisEngine:
         df_drug_sorted = df_drug.sort_values('category_id')
         categorys = df_drug_sorted['category_id'].unique().tolist()
         
-        # print("categorys:", categorys)
+        # DLOG.log(LV.TRACE,"categorys:", categorys)
         
         database = {
             "categorys": categorys,
@@ -528,7 +542,7 @@ class PillAnalysisEngine:
         model_path = self.model_1_stage_path
         
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
         
         model_1_stage = YOLO(model_path)
         model_1_stage.to(self.__device)
@@ -556,7 +570,7 @@ class PillAnalysisEngine:
         model_path = self.model_1_stage_path
         
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
         
         model_1_stage = get_model(model_name='fasterrcnn_resnet101', num_classes=74)
         
@@ -567,7 +581,7 @@ class PillAnalysisEngine:
         model_1_stage.to(self.__device)        
         
         model_1_stage.eval()
-        #print("load_1_stage_model_fasterrcnn_resnet101:", model_1_stage)
+        #DLOG.log(LV.TRACE,"load_1_stage_model_fasterrcnn_resnet101:", model_1_stage)
         
         return model_1_stage
     
@@ -593,7 +607,7 @@ class PillAnalysisEngine:
                                             "best.pth"
                                             )
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
 
         NUM_CLASSES = len(self.database['categorys'])
         model_2_stage_state, model_2_stage_info = load_model_dict(model_path)
@@ -622,7 +636,7 @@ class PillAnalysisEngine:
         model_path = self.model_2_stage_path
         
         if self.DEBUG_ON:
-            print(os.path.exists(model_path), model_path)
+            DLOG.log(LV.TRACE,os.path.exists(model_path), model_path)
 
         NUM_CLASSES = len(self.database['categorys'])
         model_2_stage_state, model_2_stage_info = load_model_dict(model_path)
@@ -883,5 +897,5 @@ if __name__ == "__main__":
     
     engine = PillAnalysisEngine(model_1_stage_path)
     result_json = engine.analyze_image(sample_path)
-    print(result_json)
+    DLOG.log(LV.TRACE,result_json)
     

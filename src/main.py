@@ -182,6 +182,18 @@ class PillAnalysisUI(QMainWindow):
         splitter.setSizes([600, 600])
         
         main_layout.addWidget(splitter)
+        
+        self.center_on_screen()
+        
+    
+    def center_on_screen(self):
+        """다이얼로그를 화면 중앙에 배치"""
+        screen = QApplication.desktop().screenGeometry()
+        size = self.geometry()
+        self.move(
+            (screen.width() - size.width()) // 3,
+            (screen.height() - size.height()) // 3
+        )
     
     def init_engine(self):
         """엔진 초기화"""
@@ -589,57 +601,128 @@ def extract_model_from_split_files():
         DLOG.log(LV.TRACE, f"모델 파일 추출 중 오류 발생: {str(e)}")
         return False
 
+class ModelDownloadWorker(QThread):
+    """모델 다운로드를 위한 워커 스레드"""
+    finished = pyqtSignal()
+    error = pyqtSignal(str)
+    progress = pyqtSignal(str)
+    
+    def __init__(self, team_dialog=None):
+        super().__init__()
+        self.team_dialog = team_dialog
+    
+    def run(self):
+        try:
+            self.run_download()
+            self.finished.emit()
+        except Exception as e:
+            self.error.emit(str(e))
+    
+    def run_download(self):
+        """모델 파일 준비 작업"""
+        py_dir = os.path.dirname(os.path.abspath(__file__))
+        urls = [{'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.001",
+                  'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.001")},
+                 {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.002",
+                  'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.002")},
+                 {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.003",
+                  'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.003")},
+                 {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/yolo8m/best.pt",
+                  'target' : os.path.join(py_dir, "python_modules", "modeling", "yolo8m", "best.pt")},
+            ]
+        
+        # 모델 파일이 존재하는지 확인
+        model_path = os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.pt")
+        
+        if not os.path.exists(model_path):
+            self.progress.emit("모델 파일이 없습니다. 자동으로 다운로드를 시작합니다...")
+            
+            # 모델 파일들 다운로드
+            for url in urls:
+                for i in range(3):  # 최대 3회 재시도
+                    if download_model_files(url['url'], url['target']):
+                        break
+                    self.progress.emit(f"재시도 {i+1}/3...")
+                    
+        # 분할된 tar 파일들을 합쳐서 best.pt 모델 파일 생성
+        self.progress.emit("모델 파일 확인 및 추출 중...")
+        if not extract_model_from_split_files():
+            raise Exception("모델 파일 추출에 실패했습니다.")
+        
+        self.progress.emit("모델 파일 준비 완료")
+        
+        if self.team_dialog:
+            self.team_dialog.done_download()
+        
 def main():
-    # 모델 파일 자동 다운로드 및 준비
+    from TeamInfoDialog import TeamInfoDialog
+    
     DLOG.log(LV.TRACE, "="*60)
     DLOG.log(LV.TRACE, "알약 분석기 시작")
     DLOG.log(LV.TRACE, "="*60)
     
-    py_dir = os.path.dirname(os.path.abspath(__file__))
-    urls = [{'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.001",
-              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.001")},
-             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.002",
-              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.002")},
-             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/fasterrcnn_resnet101/best.tar.003",
-              'target' : os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.tar.003")},
-             {'url' : "https://raw.githubusercontent.com/c0z0c/codeit_ai_health_eat_data/refs/heads/master/modeling/yolo8m/best.pt",
-              'target' : os.path.join(py_dir, "python_modules", "modeling", "yolo8m", "best.pt")},
-        ]
-    
-    
-    # 1. 모델 파일이 존재하는지 확인
-    py_dir = os.path.dirname(os.path.abspath(__file__))
-    model_path = os.path.join(py_dir, "python_modules", "modeling", "fasterrcnn_resnet101", "best.pt")
-    
-    if not os.path.exists(model_path):
-        DLOG.log(LV.TRACE, "모델 파일이 없습니다. 자동으로 다운로드를 시작합니다...")
-        DLOG.log(LV.TRACE, "\n다운로드할 파일들:")
-        for url in urls:
-            DLOG.log(LV.TRACE, f"- {os.path.basename(url['target'])}")
-        DLOG.log(LV.TRACE, "\n이 파일들은 GitHub 파일 크기 제한으로 인해 분할되어 저장되었습니다.")
-        
-        # 2. 모델 파일들 다운로드
-        for url in urls:
-            for i in range(3):  # 최대 3회 재시도
-                if download_model_files(url['url'], url['target']):
-                    break
-                DLOG.log(LV.TRACE, f"재시도 {i+1}/3...")
-    
-    # 3. 분할된 tar 파일들을 합쳐서 best.pt 모델 파일 생성
-    DLOG.log(LV.TRACE, "\n모델 파일 확인 및 추출 중...")
-    if not extract_model_from_split_files():
-        DLOG.log(LV.TRACE, "모델 파일 추출에 실패했습니다.")
-        input("Enter 키를 눌러 종료하세요...")
-        return
-    
-    DLOG.log(LV.TRACE, "모델 파일 준비 완료")
-    DLOG.log(LV.TRACE, "="*60)
-    
-    # 4. GUI 애플리케이션 시작
+    # GUI 애플리케이션 시작
     app = QApplication(sys.argv)
-    window = PillAnalysisUI()
-    window.resize(1920, 1080)
-    window.show()
+
+    window = None
+
+    # 팀 정보 다이얼로그 표시 (모달리스, 별도 스레드에서 실행)
+    team_dialog = TeamInfoDialog()
+    team_dialog.show()
+    
+    # 모델 다운로드 워커 스레드 시작
+    download_worker = ModelDownloadWorker(team_dialog=team_dialog)
+    
+    def on_download_finished():
+        """다운로드 완료 시 메인 창 표시"""
+        nonlocal window  # 외부 변수 참조 선언
+        
+        DLOG.log(LV.TRACE, "모델 다운로드 완료 - 메인 창 표시")
+        # 팀 다이얼로그가 아직 열려있다면 자동 닫기 타이머 단축
+        
+        if window is None:
+            window = PillAnalysisUI()
+            window.resize(1920, 1080)
+        
+        if team_dialog.isVisible():
+            team_dialog.close_timer.stop()
+            team_dialog.close_timer.start(3000)  # 3초 후 닫기
+        else:
+            window.show()
+    
+    def on_download_error(error_msg):
+        """다운로드 오류 시"""
+        DLOG.log(LV.TRACE, f"모델 다운로드 오류: {error_msg}")
+        QMessageBox.critical(None, "오류", f"모델 파일 준비 중 오류가 발생했습니다:\n{error_msg}")
+        app.quit()
+    
+    def on_download_progress(message):
+        """다운로드 진행 상황"""
+        DLOG.log(LV.TRACE, "on_download_progress")
+        DLOG.log(LV.TRACE, message)
+    
+    def on_team_dialog_closed():
+        """팀 다이얼로그가 닫힌 후"""
+        nonlocal window  # 외부 변수 참조 선언
+        DLOG.log(LV.TRACE, "on_team_dialog_closed")
+        if not download_worker.isRunning():            
+            # 다운로드가 이미 완료된 경우
+            if window is None:
+                window = PillAnalysisUI()
+                window.resize(1920, 1080)
+            window.show()
+    
+    # 시그널 연결
+    download_worker.finished.connect(on_download_finished)
+    download_worker.error.connect(on_download_error)
+    download_worker.progress.connect(on_download_progress)
+    
+    # 팀 다이얼로그 종료 시그널 연결
+    team_dialog.finished.connect(on_team_dialog_closed)
+    
+    # 다운로드 워커 시작 (백그라운드에서 실행)
+    download_worker.start()
+    
     sys.exit(app.exec_())
 
 if __name__ == "__main__":
