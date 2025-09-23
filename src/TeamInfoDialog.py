@@ -42,9 +42,19 @@ class AnimatedLabel(QLabel):
         self.setStyleSheet("color: rgba(255, 255, 255, 0);")
         
     def get_opacity(self):
+        """현재 투명도 값을 반환합니다.
+
+        Returns:
+            float: 현재 투명도 (0.0 ~ 1.0)
+        """
         return self._opacity
     
     def set_opacity(self, opacity):
+        """투명도 값을 설정합니다.
+
+        Args:
+            opacity (float): 설정할 투명도 (0.0 ~ 1.0)
+        """
         self._opacity = opacity
         alpha = int(255 * opacity)
         self.setStyleSheet(f"color: rgba(52, 73, 94, {alpha});")
