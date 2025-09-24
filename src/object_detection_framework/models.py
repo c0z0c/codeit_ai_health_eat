@@ -22,6 +22,18 @@ def get_model(model_name, num_classes):
     model_class = model_zoo[lower_model_name]
     return model_class(num_classes)
 
+def load_model(model_name, model_path, num_classes, device):
+    """
+    모델 로드
+    """
+
+    model = get_model(model_name=model_name, num_classes=num_classes)
+    # model = CustomFasterRCNN(num_classes=num_classes)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
+    print(f"Model loaded from: {model_path}")
+    return model
 
 class CustomFasterRCNN(torch.nn.Module):
     def __init__(self, num_classes):

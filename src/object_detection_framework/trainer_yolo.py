@@ -15,11 +15,11 @@ def main(args):
     yolo_project_dir = base_project_dir + "/yolo"
     os.makedirs(yolo_project_dir, exist_ok=True)
 
-    existing_runs = [d for d in os.listdir(yolo_project_dir) if re.match(r'^train\d+$', d)]
+    existing_runs = [d for d in os.listdir(yolo_project_dir) if re.match(rf'^yolo_train\d+$', d)]
 
     if existing_runs:
         # 기존 폴더에서 가장 큰 숫자 찾기
-        run_numbers = [int(re.match(r'^train(\d+)$', d).group(1)) for d in existing_runs]
+        run_numbers = [int(re.match(rf'^yolo_train(\d+)$', d).group(1)) for d in existing_runs]
         next_run_number = max(run_numbers) + 1
     else:
         # 기존 폴더가 없으면 1부터 시작
@@ -44,12 +44,15 @@ def main(args):
     results = model.train(data=args.yaml_path,
                           epochs=args.num_epochs,
                           imgsz=640,
-                          degrees=args.degrees,
+                          # degrees=args.degrees,
                           batch=args.batch_size,
                           device=0,
                           project=yolo_project_dir,  # object-detection/yolo로 설정
                           name=run_name,             # yolo_train{num}으로 설정
-                          exist_ok=True
+                          exist_ok=True,
+                          lr0=0.005,
+                          optimizer='Adam'
+
                           )
 
     print(f"학습 완료! 결과 저장 위치: {run_dir}")

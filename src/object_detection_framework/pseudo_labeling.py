@@ -195,7 +195,7 @@ def main():
             # 모델 설정
             # self.model_name = 'CustomFasterRCNN'  # 또는 'FasterRCNN_resnet101'
             self.model_name = 'FasterRCNN_resnet101'
-            self.num_classes = 74  # 학습 시 사용한 클래스 수
+            self.num_classes = 93  # 학습 시 사용한 클래스 수
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             
             # 데이터 경로
@@ -235,7 +235,7 @@ def main():
                 # best 모델 찾기
                 best_model_files = [f for f in os.listdir(selected_run_dir) if f.startswith('best_model_map_')]
                 if best_model_files:
-                    config.model_path = os.path.join(selected_run_dir, best_model_files[0])
+                    config.model_path = os.path.join(selected_run_dir, best_model_files[-1])
                 else:
                     # checkpoint에서 최신 모델 찾기
                     checkpoint_dir = os.path.join(selected_run_dir, "checkpoints")

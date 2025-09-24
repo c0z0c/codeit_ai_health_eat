@@ -100,7 +100,7 @@ def main(args):
 if __name__ == "__main__":
     class Args_yolo:
         def __init__(self):
-            self.model_path = './runs/detect/train4/weights/best.pt'
+            self.model_path = None
             self.label2id_path = './data/label2id.json'
             # 이미지 하나만 사용할 경우 True 아니면 False
             self.predict_one_image = True

@@ -25,7 +25,7 @@ class Args_fasterrcnn:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"        ## 디바이스 설정
 
         # Model parameters
-        self.num_classes = 74       ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
+        self.num_classes = 93       ## 반드시 모델 학습 시 사용한 클래스 수로 맞춰야 함
 
         # Output settings
         self.save_predictions = True                        ## json 데이터 저장 여부
@@ -37,10 +37,11 @@ class Args_fasterrcnn:
 
 class Args_yolo:
     def __init__(self):
-        self.model_path = './runs/detect/train1/weights/best.pt'
+        # self.model_path = './object-detection/yolo/yolo_train1/weights/best.pt'
+        self.model_path = None
         self.label2id_path = './data/label2id.json'
         # 이미지 하나만 사용할 경우 True 아니면 False
-        self.predict_one_image = True
+        self.predict_one_image = False
         self.test_image_folder = './data/ai04-level1-project/test_images'
         self.test_image_path = './data/ai04-level1-project/test_images/1.png'
 

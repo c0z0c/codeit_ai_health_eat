@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 from utils import visualize_prediction
-from models import CustomFasterRCNN, FasterRCNN_resnet101, get_model
+from models import CustomFasterRCNN, FasterRCNN_resnet101, get_model, load_model
 from utils import visualize_prediction
 from trainer_fasterrcnn import get_transforms
 
@@ -49,18 +49,7 @@ class ImageOnlyDataset(Dataset):
         return image, img_path
 
 
-def load_model(model_name, model_path, num_classes, device):
-    """
-    모델 로드
-    """
 
-    model = get_model(model_name=model_name, num_classes=num_classes)
-    # model = CustomFasterRCNN(num_classes=num_classes)
-    model.load_state_dict(torch.load(model_path, map_location=device))
-    model.to(device)
-    model.eval()
-    print(f"Model loaded from: {model_path}")
-    return model
 
 
 def run_inference(model, data_loader, device, confidence_threshold=0.5):
@@ -155,6 +144,42 @@ def visualize_and_save_results(model, dataset, predictions, output_image_paths, 
             plt.show()
 
 
+def threshold_data_visualize(dataset, predictions, class_names, args, threshold=0.8):
+    for i, idx in enumerate(range(len(dataset))):
+        image_tensor, img_path = dataset[idx]
+        image = image_tensor.permute(1, 2, 0).numpy()
+
+        pred = predictions[idx]
+        plt.figure(figsize=(12, 8))
+        plt.imshow(image)
+
+        # 예측 결과 그리기
+        is_low_score_found = False
+        for box, label, score in zip(pred["boxes"], pred["labels"], pred["scores"]):
+            # 스코어가 임계값 이하인 예측만 시각화
+            if score.item() <= threshold:
+                is_low_score_found = True
+                x_min, y_min, x_max, y_max = box.tolist()
+                width, height = x_max - x_min, y_max - y_min
+                rect = plt.Rectangle((x_min, y_min), width, height,
+                                     linewidth=2, edgecolor="red", facecolor="none")
+                plt.gca().add_patch(rect)
+                plt.text(
+                    x_min, y_min - 10,
+                    f"{class_names[label.item()]}: {score:.2f}",
+                    color="red", fontsize=8,
+                    bbox=dict(facecolor="white", alpha=0.7)
+                )
+
+        # 예측 결과가 있을 때만 시각화 관련 코드를 실행
+        if is_low_score_found:
+            plt.title(f"Sample {i + 1} - Predictions (Score <= {threshold:.2f})")
+            plt.axis("off")
+            plt.tight_layout()
+            plt.show()
+        else:
+            plt.close()  # 예측 결과가 없으면 그래프를 닫아 리소스 낭비 방지
+
 def main(args, model_name):
     print(f"Using device: {args.device}")
     
@@ -185,7 +210,7 @@ def main(args, model_name):
         # 모델 경로 설정 (best.pt 또는 특정 체크포인트 선택)
         best_model_files = [f for f in os.listdir(selected_run_dir) if f.startswith('best_model_map_')]
         if best_model_files:
-            model_path = os.path.join(selected_run_dir, best_model_files[0])  # 첫 번째 best 모델 사용
+            model_path = os.path.join(selected_run_dir, best_model_files[-1])  # 마지막 best 모델 사용
         else:
             # checkpoints 폴더에서 최신 체크포인트 찾기
             checkpoint_dir = os.path.join(selected_run_dir, "checkpoints")
@@ -265,6 +290,8 @@ def main(args, model_name):
 
             visualize_and_save_results(model, dataset, predictions, visualizations_dir, class_names, args)
             print(f"시각화 결과 저장: {visualizations_dir}")
+
+        threshold_data_visualize(dataset,predictions, class_names,args)
 
         print("Inference completed!")
 

@@ -13,22 +13,22 @@ class Args_fasterrcnn:
         # Data paths - 새로운 구조에 맞게 수정
         self.train_image_dir = "./data/images/train"  # 훈련 이미지 폴더
         self.valid_image_dir = "./data/images/val"  # 검증 이미지 폴더
-        self.train_annotation_path = "./data/labels/train/train_pseudo.json"  # 훈련 어노테이션 파일
         # self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
-        self.valid_annotation_path = "./data/labels/val/valid_pseudo.json"  # 검증 어노테이션 파일
         # self.valid_annotation_path = "./data/labels/val/valid.json"  # 검증 어노테이션 파일
+        self.train_annotation_path = "./data/labels/train/train_pseudo.json"  # pseudo-label 포함 훈련 어노테이션 파일
+        self.valid_annotation_path = "./data/labels/val/valid_pseudo.json"  # pseudo-label 포함 검증 어노테이션 파일
         self.id2label_path = './data/id2label.json'
         # self.checkpoint_dir = "./checkpoints/"  # checkpoint 모델 경로 # 이제 안씀
 
         # Training parameters
         self.batch_size = 4                                                                     # 배치 크기
         # self.num_epochs = 31                                                                 # 에포크 수
-        self.num_epochs = 30                                                                    # 에포크 수
+        self.num_epochs = 50                                                                    # 에포크 수
         self.learning_rate = 0.005                                                              # 학습률
-        self.weight_decay = 0.0005                                                              # 학습률 변화
+        self.weight_decay = 0.0005
         self.momentum = 0.9                                                                     # 모멘텀
-        self.step_size = 10
-        self.gamma = 0.1
+        self.step_size = 5
+        self.gamma = 0.9                                                                        # 학습률 변화
 
         # Model parameters
         self.num_classes = None                                                                 # dataset에서 자동으로 결정, 손수 결정할 때만 입력
@@ -42,9 +42,9 @@ class Args_fasterrcnn:
 
         # Resume training
                                                                                                 # 중간에 학습 멈추고 다시 시작할때, checkpoint 불러오는 설정
-        self.resume = False                                                                   # False는 안불러옴 - 처음부터 학습함(대신 이전에 학습해서 checkpoint있으면, 덮어씀.
-        self.checkpoint_path = "./object-detection/CustomFasterRCNN/train1/checkpoints/checkpoint_epoch_1.pth"         # 불러올 checkpoint 경로
-        self.checkpoint_path = "./object-detection/FasterRCNN_resnet101/train1/checkpoints/checkpoint_epoch_1.pth"
+        self.resume = True                                                                 # False는 안불러옴 - 처음부터 학습함(대신 이전에 학습해서 checkpoint있으면, 덮어씀.
+        # self.checkpoint_path = "./object-detection/CustomFasterRCNN/train1/checkpoints/checkpoint_epoch_1.pth"         # 불러올 checkpoint 경로
+        self.checkpoint_path = "./object-detection/FasterRCNN_resnet101/train5/checkpoints/checkpoint_epoch_30.pth"
 
         # Validation - 이제 별도 파일로 제공되므로 필요없음
         # self.val_split = 0.2
@@ -82,9 +82,13 @@ class Args_yolo:
         # Data paths - 새로운 구조에 맞게 수정
         self.train_image_dir = "./data/images/train"  # 훈련 이미지 폴더
         self.valid_image_dir = "./data/images/val"  # 검증 이미지 폴더
-        self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
-        self.valid_annotation_path = "./data/labels/val/valid.json"  # 검증 어노테이션 파일
-        self.yaml_path = './data/my_dataset_config.yaml'
+        # self.train_annotation_path = "./data/labels/train/train.json"  # 훈련 어노테이션 파일
+        # self.valid_annotation_path = "./data/labels/val/valid.json"  # 검증 어노테이션 파일
+        self.train_annotation_path = "./data/labels/train/train_pseudo.json"  # 훈련 어노테이션 파일
+        self.valid_annotation_path = "./data/labels/val/valid_pseudo.json"  # 검증 어노테이션 파일
+        #
+        # self.yaml_path = './data/my_dataset_config.yaml'
+        self.yaml_path = './data/my_dataset_config_pseudo.yaml'
         # self.checkpoint_dir = "./checkpoints"  # checkpoint 모델 경로
 
         # Training parameters
