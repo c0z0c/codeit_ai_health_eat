@@ -18,6 +18,7 @@ pragma: no-cache
 
 [시연동영상](https://youtu.be/xTH2Wbz9dhA)
 
+[최종 보고서](https://github.com/c0z0c/codeit_ai_health_eat/blob/alpha/%EA%B0%9D%EC%B2%B4%ED%83%90%EC%A7%80_%EB%B0%9C%ED%91%9C_%EC%B5%9C%EC%A2%85.pdf)
 ## 📋 목차
 - [협업 일지](#협업-일지)<br/>
 - [프로젝트 개요](#프로젝트-개요)<br/>
