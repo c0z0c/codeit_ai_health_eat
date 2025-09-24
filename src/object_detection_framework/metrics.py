@@ -40,6 +40,34 @@ def compute_iou(box1: torch.Tensor, box2: torch.Tensor) -> float:
     return intersection / union
 
 
+def calculate_iou(box1, box2):
+    """
+    두 bounding box의 IoU 계산
+    box format: [x_min, y_min, width, height]
+    """
+    x1_min, y1_min, w1, h1 = box1
+    x2_min, y2_min, w2, h2 = box2
+
+    x1_max, y1_max = x1_min + w1, y1_min + h1
+    x2_max, y2_max = x2_min + w2, y2_min + h2
+
+    # 교집합 영역 계산
+    inter_x_min = max(x1_min, x2_min)
+    inter_y_min = max(y1_min, y2_min)
+    inter_x_max = min(x1_max, x2_max)
+    inter_y_max = min(y1_max, y2_max)
+
+    if inter_x_max <= inter_x_min or inter_y_max <= inter_y_min:
+        return 0.0
+
+    inter_area = (inter_x_max - inter_x_min) * (inter_y_max - inter_y_min)
+    box1_area = w1 * h1
+    box2_area = w2 * h2
+    union_area = box1_area + box2_area - inter_area
+
+    return inter_area / union_area if union_area > 0 else 0.0
+
+
 def compute_ap(recall: np.ndarray, precision: np.ndarray) -> float:
     """
     Average Precision (AP) 계산

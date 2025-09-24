@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PillDetect - 약물 인식 앱</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            max-width: 414px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px 20px 30px;
+            text-align: center;
+            border-radius: 0 0 20px 20px;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+
+        .main-content {
+            padding: 20px;
+        }
+
+        .camera-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .camera-preview {
+            width: 100%;
+            min-height: 250px; /* 이미지가 없을 때 최소 높이 유지 */
+            height: auto; /* 이미지 크기에 맞춰 높이 자동 조절 */
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .camera-preview:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .camera-placeholder {
+            text-align: center;
+            color: #6c757d;
+        }
+
+        .camera-icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        .captured-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .detection-overlay {
+            position: absolute;
+            border: 3px solid #ff4757;
+            background: rgba(255, 71, 87, 0.1);
+            pointer-events: none;
+        }
+
+        .detection-label {
+            position: absolute;
+            background: #ff4757;
+            color: white;
+            padding: 2px 6px;
+            font-size: 0.8em;
+            border-radius: 3px;
+            top: -25px;
+            left: 0;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 48%;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 4%;
+            margin-top: 10px;
+        }
+
+        .results-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .results-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .results-icon {
+            font-size: 1.5em;
+            margin-right: 10px;
+            color: #667eea;
+        }
+
+        .results-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .pill-result {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+
+        .pill-name {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .pill-info {
+            font-size: 0.9em;
+            color: #6c757d;
+            line-height: 1.4;
+        }
+
+        .pill-info strong {
+            color: #495057;
+        }
+
+        .confidence-bar {
+            background: #e9ecef;
+            height: 6px;
+            border-radius: 3px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff4757, #ffa502, #2ed573);
+            transition: width 0.8s ease;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 30px;
+            color: #6c757d;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+
+        .warning-icon {
+            color: #f39c12;
+            margin-right: 8px;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 414px;
+            width: 100%;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            padding: 15px 0 25px;
+        }
+
+        .nav-items {
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+
+        .nav-item {
+            text-align: center;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            color: #6c757d;
+        }
+
+        .nav-item.active {
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .nav-icon {
+            font-size: 1.3em;
+            margin-bottom: 3px;
+        }
+
+        .nav-label {
+            font-size: 0.8em;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>💊 PillDetect</h1>
+            <p>AI 기반 약물 인식 및 정보 제공</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content" style="padding-bottom: 100px;">
+            <!-- Warning Message -->
+            <div class="warning-box">
+                <span class="warning-icon">⚠️</span>
+                <strong>주의:</strong> 이 앱의 결과는 참고용입니다. 정확한 약물 정보는 의료진과 상담하세요.
+            </div>
+
+            <!-- Camera Section -->
+            <div class="camera-section">
+                <div class="camera-preview" id="cameraPreview" onclick="selectImage()">
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+                        <div class="camera-icon">📷</div>
+                        <p>약물 사진을 촬영하거나 선택하세요</p>
+                        <small>최대 4개의 알약을 동시에 인식합니다</small>
+                    </div>
+                </div>
+
+                <button class="btn-primary" onclick="selectImage()">
+                    📸 사진 촬영/선택
+                </button>
+                
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="clearImage()">🗑️ 초기화</button>
+                    <button class="btn-secondary" onclick="toggleGuide()">📋 가이드</button>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div class="loading hidden" id="loadingState">
+                <div class="loading-spinner"></div>
+                <p>AI가 약물을 분석 중입니다...</p>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section hidden" id="resultsSection">
+                <div class="results-header">
+                    <span class="results-icon">🎯</span>
+                    <span class="results-title">검출 결과</span>
+                </div>
+                <div id="resultsContainer">
+                    <!-- Results will be populated here -->
+                </div>
+            </div>
+
+            <!-- Guide Section -->
+            <div class="results-section hidden" id="guideSection">
+                <div class="results-header">
+                    <span class="results-icon">📋</span>
+                    <span class="results-title">촬영 가이드</span>
+                </div>
+                <div style="line-height: 1.6; color: #495057;">
+                    <p><strong>📸 촬영 팁:</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>밝은 조명에서 촬영하세요</li>
+                        <li>약물을 평평한 면에 올려두세요</li>
+                        <li>카메라를 약물 위에 수직으로 위치시키세요</li>
+                        <li>약물이 화면 중앙에 오도록 하세요</li>
+                        <li>그림자가 생기지 않도록 주의하세요</li>
+                    </ul>
+                    <p><strong>🔍 인식 한계:</strong></p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        <li>유사한 모양/색상의 약물은 구별이 어려울 수 있습니다</li>
+                        <li>한 면만으로 구별이 어려운 경우 뒷면도 촬영해보세요</li>
+                        <li>손상되거나 변형된 약물은 인식률이 낮을 수 있습니다</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Navigation -->
+        <div class="bottom-nav">
+            <div class="nav-items">
+                <div class="nav-item active">
+                    <div class="nav-icon">📷</div>
+                    <div class="nav-label">촬영</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon">📋</div>
+                    <div class="nav-label">기록</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon">⚕️</div>
+                    <div class="nav-label">상호작용</div>
+                </div>
+                <div class="nav-item">
+                    <div class="nav-icon">⚙️</div>
+                    <div class="nav-label">설정</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hidden file input -->
+        <input type="file" id="imageInput" accept="image/*" capture="camera" onchange="handleImageSelect(event)">
+    </div>
+
+    <script>
+        let currentImage = null;
+        let currentImageFile = null;  // 실제 파일 객체 저장
+        let isProcessing = false;
+
+        // Mock detection results for demo
+        const mockResults = [
+            {
+                name: "타이레놈정 500mg",
+                code: "12777",
+                confidence: 92,
+                company: "한국얀센",
+                ingredients: "아세트아미노펜 500mg",
+                shape: "장방형",
+                color: "흰색",
+                line: "T 500",
+                bbox: {x: 50, y: 30, width: 120, height: 80}
+            },
+            {
+                name: "게보린정",
+                code: "36507", 
+                confidence: 87,
+                company: "삼진제약",
+                ingredients: "아세트아미노펜 230mg, 이부프로펜 200mg",
+                shape: "원형",
+                color: "노란색",
+                line: "G",
+                bbox: {x: 200, y: 120, width: 90, height: 90}
+            }
+        ];
+
+        function selectImage() {
+            if (isProcessing) return;
+            document.getElementById('imageInput').click();
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            // 파일 객체 저장
+            currentImageFile = file;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                displayImage(e.target.result);
+                simulateDetection();  // 자동으로 검출 시작
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function displayImage(imageSrc) {
+            const preview = document.getElementById('cameraPreview');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            
+            placeholder.style.display = 'none';
+            preview.innerHTML = `<img src="${imageSrc}" class="captured-image" alt="Captured pill">`;
+            currentImage = imageSrc;
+        }
+
+        async function simulateDetection() {
+            if (isProcessing) return;
+            
+            isProcessing = true;
+            showLoading();
+            hideResults();
+
+            try {
+                // 실제 모델 호출
+                const results = await callDetectionAPI(currentImageFile);
+                showResults(results);
+                showDetectionBoxes(results);
+            } catch (error) {
+                console.error('Detection failed:', error);
+                showError('약물 인식에 실패했습니다. 다시 시도해주세요.');
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        async function callDetectionAPI(imageFile) {
+            const formData = new FormData();
+            formData.append('file', imageFile);
+
+            const response = await fetch("http://localhost:8000/api/detect", {
+                method: 'POST',
+                body: formData
+            });
+
+            if (!response.ok) {
+                throw new Error('서버 오류가 발생했습니다.');
+            }
+
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || '인식 실패');
+            }
+
+            return data.results;
+        }
+
+        function showLoading() {
+            document.getElementById('loadingState').classList.remove('hidden');
+            document.getElementById('loadingState').classList.add('fade-in');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingState').classList.add('hidden');
+        }
+
+        function showResults(results) {
+            hideLoading();
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            resultsContainer.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                const resultElement = document.createElement('div');
+                resultElement.className = 'pill-result';
+                
+                resultElement.innerHTML = `
+                    <div class="pill-name">${result.name}</div>
+                    <div class="pill-info">
+                        <strong>식별코드:</strong> ${result.code}<br>
+                        <strong>제조회사:</strong> ${result.company}<br>
+                        <strong>주성분:</strong> ${result.ingredients}<br>
+                        <strong>모양/색상:</strong> ${result.shape}, ${result.color}<br>
+                        <strong>식별표시:</strong> ${result.line}
+                    </div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${result.confidence}%"></div>
+                    </div>
+                    <small style="color: #6c757d; margin-top: 5px; display: block;">
+                        신뢰도: ${result.confidence}%
+                    </small>
+                `;
+                
+                resultsContainer.appendChild(resultElement);
+            });
+            
+            resultsSection.classList.remove('hidden');
+            resultsSection.classList.add('fade-in');
+        }
+
+        function showDetectionBoxes(results) {
+            const preview = document.getElementById('cameraPreview');
+            const imageElement = preview.querySelector('.captured-image');
+
+            if (!imageElement) return;
+
+            // 기존 박스들 제거
+            const existingBoxes = preview.querySelectorAll('.detection-overlay');
+            existingBoxes.forEach(box => box.remove());
+
+            // 이미지의 실제 표시 크기 계산
+            const previewRect = preview.getBoundingClientRect();
+            const imageRect = imageElement.getBoundingClientRect();
+
+            const imageNaturalWidth = imageElement.naturalWidth;
+            const imageNaturalHeight = imageElement.naturalHeight;
+            const imageDisplayedWidth = imageRect.width;
+            const imageDisplayedHeight = imageRect.height;
+
+            const scaleX = imageDisplayedWidth / imageNaturalWidth;
+            const scaleY = imageDisplayedHeight / imageNaturalHeight;
+            const offsetX = (previewRect.width - imageDisplayedWidth) / 2;
+            const offsetY = (previewRect.height - imageDisplayedHeight) / 2;
+
+            results.forEach((result) => {
+                const overlay = document.createElement('div');
+                overlay.className = 'detection-overlay';
+
+                // bbox 데이터를 실제 표시되는 이미지 크기에 맞춰 조정
+                const x = (result.bbox.x * scaleX);
+<!--                const x = (result.bbox.x * scaleX) + offsetX;-->
+                const y = (result.bbox.y * scaleY);
+<!--                const y = (result.bbox.y * scaleY) + offsetY;-->
+                const width = result.bbox.width * scaleX;
+                const height = result.bbox.height * scaleY;
+
+                overlay.style.left = `${x}px`;
+                overlay.style.top = `${y}px`;
+                overlay.style.width = `${width}px`;
+                overlay.style.height = `${height}px`;
+
+                const label = document.createElement('div');
+                label.className = 'detection-label';
+                label.textContent = `${result.name.split(' ')[0]} (${result.confidence}%)`;
+
+                overlay.appendChild(label);
+                preview.appendChild(overlay);
+            });
+        }
+
+<!--        function showDetectionBoxes(results) {-->
+<!--            const preview = document.getElementById('cameraPreview');-->
+<!--            -->
+<!--            // 기존 박스들 제거-->
+<!--            const existingBoxes = preview.querySelectorAll('.detection-overlay');-->
+<!--            existingBoxes.forEach(box => box.remove());-->
+<!--            -->
+<!--            results.forEach((result, index) => {-->
+<!--                const overlay = document.createElement('div');-->
+<!--                overlay.className = 'detection-overlay';-->
+<!--                overlay.style.left = result.bbox.x + 'px';-->
+<!--                overlay.style.top = result.bbox.y + 'px';-->
+<!--                overlay.style.width = result.bbox.width + 'px';-->
+<!--                overlay.style.height = result.bbox.height + 'px';-->
+<!--                -->
+<!--                const label = document.createElement('div');-->
+<!--                label.className = 'detection-label';-->
+<!--                label.textContent = `${result.name.split(' ')[0]} (${result.confidence}%)`;-->
+<!--                -->
+<!--                overlay.appendChild(label);-->
+<!--                preview.appendChild(overlay);-->
+<!--            });-->
+<!--        }-->
+
+        function showError(message) {
+            hideLoading();
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsContainer = document.getElementById('resultsContainer');
+            
+            resultsContainer.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #e74c3c;">
+                    <div style="font-size: 2em; margin-bottom: 10px;">⚠️</div>
+                    <p>${message}</p>
+                    <button class="btn-secondary" onclick="hideResults()" style="margin-top: 10px; width: auto;">
+                        다시 시도
+                    </button>
+                </div>
+            `;
+            
+            resultsSection.classList.remove('hidden');
+            resultsSection.classList.add('fade-in');
+        }
+
+        function hideResults() {
+            document.getElementById('resultsSection').classList.add('hidden');
+        }
+
+        function clearImage() {
+            const preview = document.getElementById('cameraPreview');
+            const placeholder = document.getElementById('cameraPlaceholder');
+            
+            preview.innerHTML = '';
+            preview.appendChild(placeholder);
+            placeholder.style.display = 'block';
+            
+            hideResults();
+            hideLoading();
+            currentImage = null;
+            
+            // Clear file input
+            document.getElementById('imageInput').value = '';
+        }
+
+        function toggleGuide() {
+            const guide = document.getElementById('guideSection');
+            if (guide.classList.contains('hidden')) {
+                guide.classList.remove('hidden');
+                guide.classList.add('fade-in');
+            } else {
+                guide.classList.add('hidden');
+            }
+        }
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('PillDetect App initialized');
+        });
+    </script>
+</body>
+</html>

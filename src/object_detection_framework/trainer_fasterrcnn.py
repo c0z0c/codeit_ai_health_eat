@@ -156,6 +156,8 @@ def main(args, model_name):
         # 학습 재개 시에는 기존 체크포인트가 있는 폴더를 사용
         args.checkpoint_dir = os.path.dirname(args.checkpoint_path)
         print(f"학습 재개: 기존 체크포인트 경로 사용 - {args.checkpoint_dir}")
+        checkpoint_subdir = args.checkpoint_dir
+
     else:
         # 새롭게 학습을 시작할 때만 고유한 폴더 생성
         existing_runs = [d for d in os.listdir(model_project_dir) if re.match(r'^train\d+$', d)]
@@ -172,8 +174,9 @@ def main(args, model_name):
         args.checkpoint_dir = os.path.join(model_project_dir, run_dir_name)
         os.makedirs(args.checkpoint_dir, exist_ok=True)
         print(f"새로운 훈련 시작: 고유한 폴더 생성 - {args.checkpoint_dir}")
+        checkpoint_subdir = os.path.join(args.checkpoint_dir, "checkpoints")
+
     # 체크포인트 폴더 내부에 하위 폴더 생성
-    checkpoint_subdir = os.path.join(args.checkpoint_dir, "checkpoints")
     os.makedirs(checkpoint_subdir, exist_ok=True)
 
     # 실제 체크포인트 저장 경로 업데이트
@@ -253,7 +256,13 @@ def main(args, model_name):
         momentum=args.momentum,
         weight_decay=args.weight_decay
     )
-
+    # optimizer = optim.Adam(
+    #     params,
+    #     lr=args.learning_rate,
+    #     weight_decay=args.weight_decay,
+    #     betas=(0.9, 0.999),  # 기본값
+    #     eps=1e-08  # 기본값
+    # )
     scheduler = optim.lr_scheduler.StepLR(
         optimizer,
         step_size=args.step_size,
@@ -311,6 +320,7 @@ def main(args, model_name):
             }
 
             if detailed_results:
+                print(detailed_results)
                 log_dict.update({
                     "mAP@0.5:0.95": detailed_results['mAP']['mAP@0.5:0.95'],
                     # "mAP@0.5": detailed_results['mAP']['mAP@0.5'],

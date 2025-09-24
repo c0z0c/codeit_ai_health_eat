@@ -268,6 +268,26 @@ class PillAnalysisEngine:
         return detections
     
     def detect_pills(self, validated_image):
+        """
+        2단계: 객체 탐지
+        설명:
+          - 이 함수는 1단계 모델(YOLO)을 사용하여 이미지 내 알약(객체)을 탐지합니다.
+          - 입력(validated_image)은 PIL.Image 또는 numpy.ndarray 가능.
+          - 반환값(detections)은 다음 구조의 dict:
+            {
+              'org_img': PIL.Image.Image,   # 원본(혹은 모델이 내부적으로 리사이즈/패딩한) 이미지
+              'bboxs': [                    # 각 탐지된 박스의 리스트
+                {
+                  'class_id': int,          # 모델이 반환한 클래스 인덱스 (초기값)
+                  'class_name': int,        # 현재는 class_id와 동일 (후속 분류에서 실제 이름으로 교체)
+                  'xyxy': [x1,y1,x2,y2],    # 좌표 (정수)
+                  'xywh': [x,y,w,h],        # x,y는 왼쪽상단
+                  'detect_score': float,    # 탐지 신뢰도
+                  'img': PIL.Image.Image    # 박스 크롭 이미지
+                }, ...
+              ]
+            }
+        """
         import matplotlib.patches as mpatches
         if self.model_1_stage is None:
             raise ValueError("1단계 모델이 로드되지 않았습니다.")
@@ -338,6 +358,28 @@ class PillAnalysisEngine:
     
         # 3단계: 객체 분류
     def classify_pills(self, validated_image, detections):
+        """
+        3단계: 객체 분류
+        설명:
+          - 2단계(탐지)에서 잘라낸 각 박스 이미지를 2단계 분류기(model_2_stage)에 넣어
+            약(알약) 클래스 확률 및 최종 클래스 예측을 수행합니다.
+          - model_2_stage가 로드되어 있지 않으면 입력 detections를 그대로 반환합니다.
+        입력:
+          - validated_image: 원본 이미지 (사용하지 않지만 인터페이스 일관성을 위해 전달됨)
+          - detections: detect_pills/ detect_pills_fasterrcnn_resnet101의 반환 dict
+              {
+                'org_img': PIL.Image.Image,
+                'bboxs': [
+                  {'img': PIL.Image.Image, 'class_id': ..., 'class_name': ..., 'detect_score': ...}, ...
+                ]
+              }
+        반환:
+          - 동일한 detections dict에 아래 필드들을 추가/갱신하여 반환:
+            - class_id: 예측 클래스 인덱스 (int)
+            - class_name: 데이터베이스의 카테고리 이름/ID (str 또는 int)
+            - class_probabilitie: 클래스별 확률 배열 (numpy.ndarray, 소수점 반올림)
+            - class_score: 예측된 클래스의 확률 (float)
+        """
         
         if not self.model_2_stage:
             return detections
@@ -478,12 +520,26 @@ class PillAnalysisEngine:
         return result
 
     def format_response(self, drug_info):
+        """
+        응답용으로 약물 정보를 포맷합니다.
+        
+        설명:
+          - drug_info(dict)를 받아 내부의 PIL 이미지들을 base64 문자열로 변환하고
+            numpy / pandas 등 직렬화 불가능한 객체를 JSON 직렬화 가능한 형태로 변환합니다.
+          - 반환값은 utf-8 한글을 유지하는 JSON 문자열입니다.
+        
+        Args:
+          - drug_info (dict): validate_and_enrich() 또는 classify_pills()의 반환 구조와 동일.
+        
+        Returns:
+          - str: JSON 문자열 (ensure_ascii=False, indent=2)
+        """
         import json
         import base64
         from io import BytesIO
         from PIL import Image        
         def pil_to_base64_str(pil_img, format='PNG'):
-            """PIL 이미지를 base64 문자열로 변환"""
+            """PIL 이미지를 base64 인코딩된 문자열로 변환합니다."""
             buffered = BytesIO()
             pil_img.save(buffered, format=format)
             img_bytes = buffered.getvalue()
@@ -491,6 +547,14 @@ class PillAnalysisEngine:
             return img_base64
                 
         def clear_object(obj):
+            """
+            drug_info 내부의 비직렬화 객체를 재귀적으로 변환합니다.
+            변환 규칙:
+              - 'org_img' 키는 결과에 포함하지 않습니다 (원본 이미지는 보통 크기 큼).
+              - numpy.ndarray -> list
+              - numpy scalar -> python 기본형
+              - dict/list 내부는 재귀 처리
+            """
             if isinstance(obj, dict):
                 result = {}
                 for k, v in obj.items():
@@ -517,6 +581,21 @@ class PillAnalysisEngine:
         return json_str
 
     def init_database(self):
+        """
+        데이터베이스를 초기화하고 필요한 데이터프레임을 로드합니다.
+
+        동작:
+          - self.data_path에서 약물 정보(df_drug_118.pkl)와 병용금기 데이터(df_병용금기약물_20240813.pkl)를 읽어옵니다.
+          - df_drug에서 카테고리 ID 목록(categorys)을 생성하여 데이터베이스에 저장합니다.
+          - 실패 시 로그를 남기고 예외를 발생시킵니다.
+
+        Returns:
+          dict: {
+            "categorys": list,            # 정렬된 고유 category_id 리스트
+            "df_drug": pandas.DataFrame,  # 약물 정보 데이터프레임
+            "td_interaction": pandas.DataFrame  # 병용금기(상호작용) 데이터프레임
+          }
+        """
         #df_drug_116
         #df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug.pkl"))
         #df_drug = pd.read_pickle(os.path.join(self.data_path, "df_drug_116.pkl"))
@@ -538,7 +617,11 @@ class PillAnalysisEngine:
         return database
     
     def load_1_stage_model(self):
-        
+        """
+        YOLO 모델을 로드하여 1단계 객체 탐지 모델로 설정합니다.
+        이 모델은 약물(알약) 객체를 탐지하는 데 사용됩니다.
+        """
+        # 모델 파일 경로 설정 (생성자에서 전달된 경로 사용)
         model_path = self.model_1_stage_path
         
         if self.DEBUG_ON:
@@ -586,6 +669,18 @@ class PillAnalysisEngine:
         return model_1_stage
     
     def load_2_stage_model_efficientnet_b3(self):
+        """
+        EfficientNet B3 모델을 로드하여 2단계 분류 모델로 설정합니다.
+
+        설명:
+          - 저장된 체크포인트(best.pth)를 읽어 모델 state를 복원하고 평가 모드로 설정합니다.
+          - timm의 efficientnet_b3 모델을 사용하며, 클래스 수는 DB에 로드된 카테고리 수로 설정합니다.
+          - 모델은 self.__device(CUDA 가능 시 GPU)로 이동됩니다.
+
+        반환:
+          - model_2_stage: 로드된 PyTorch 모델 (eval 모드)
+        """
+        
         def load_model_dict(path, pth_name=None):
             """
             save_model_dict로 저장한 모델을 불러오는 함수
@@ -618,6 +713,18 @@ class PillAnalysisEngine:
         return model_2_stage
 
     def load_2_stage_model_resnet(self):
+        """
+        EfficientNet B3 모델을 로드하여 2단계 분류 모델로 설정합니다.
+
+        설명:
+          - 저장된 체크포인트(best.pth)를 읽어 모델 state를 복원하고 평가 모드로 설정합니다.
+          - timm의 efficientnet_b3 모델을 사용하며, 클래스 수는 DB에 로드된 카테고리 수로 설정합니다.
+          - 모델은 self.__device(CUDA 가능 시 GPU)로 이동됩니다.
+
+        반환:
+          - model_2_stage: 로드된 PyTorch 모델 (eval 모드)
+        """
+        
         def load_model_dict(path, pth_name=None):
             """
             save_model_dict로 저장한 모델을 불러오는 함수
@@ -660,6 +767,33 @@ class PillAnalysisEngine:
     
     
     def image_classify(self, classify):
+        """이미지 분류 결과를 시각화하여 PIL 이미지로 반환합니다.
+
+        설명:
+          - 입력 classify는 analyze_image -> format_response 이전의 내부 구조(dict)와 동일합니다:
+            {
+              'org_img': PIL.Image.Image,   # 원본 이미지
+              'bboxs': [                    # 탐지된 박스 리스트
+                {
+                  'class_id': int,
+                  'class_name': str|int,
+                  'xyxy': [x1,y1,x2,y2],
+                  'xywh': [x,y,w,h],
+                  'detect_score': float,
+                  'img': PIL.Image.Image,    # 크롭된 알약 이미지
+                  'class_probabilitie': ndarray,
+                  'class_score': float
+                }, ...
+              ]
+            }
+          - 원본 이미지에 바운딩박스와 레이블을 그린 상단 영역과,
+            하단에 각 크롭 이미지를 좌우로 이어 붙여 레이블을 표시한 이미지를 생성합니다.
+        Args:
+          - classify (dict): 위 구조의 분류/탐지 결과 dict
+        Returns:
+          - PIL.Image.Image: 시각화된 결과 이미지 (PNG 형식으로 메모리 저장 후 PIL로 반환)
+        """
+        
         import json
         import numpy as np
         import matplotlib.pyplot as plt
@@ -735,6 +869,14 @@ class PillAnalysisEngine:
         return pil_img
 
     def image_result(self, result_json):
+        """이미지 분류 결과를 시각화하여 PIL 이미지로 반환합니다.
+        
+        설명:
+          - result_json(JSON 문자열)에서 박스 정보와 (선택적)원본 이미지 경로를 읽어
+            바운딩박스 및 레이블이 그려진 시각화 이미지를 생성하여 PIL.Image로 반환합니다.
+          - 반환 이미지는 PNG로 메모리 저장된 후 PIL로 로드됩니다.
+        """
+        
         import json
         import numpy as np
         import matplotlib.pyplot as plt
@@ -833,6 +975,12 @@ class PillAnalysisEngine:
         return pil_img
 
     def show_img(self, img):
+        """이미지를 시각화하여 보여줍니다.
+        
+        Args:
+          - img: PIL.Image.Image 또는 numpy.ndarray (cv2로 읽은 BGR 가능)
+        """
+        
         import matplotlib as mpl
         import matplotlib.pyplot as plt
         dpi = mpl.rcParams['figure.dpi']
@@ -844,6 +992,12 @@ class PillAnalysisEngine:
         plt.show()
 
     def save_img(self, img, out_image_path):
+        """이미지를 저장합니다.
+        Args:
+            img (PIL.Image.Image 또는 numpy.ndarray): 저장할 이미지
+            out_image_path (str): 저장할 파일 경로
+        """
+        
         # JPEG은 RGBA(알파채널) 저장 불가 → RGB로 변환 필요
         import os
         from PIL import Image

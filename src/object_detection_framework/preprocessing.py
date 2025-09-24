@@ -68,7 +68,7 @@ def group_and_split_annotations(annotations_dir, output_dir, split_ratio=0.8):
                     print(f"오류 발생: {file_path} - {e}")
 
     print(f"총 {annotation_count}개의 어노테이션 파일을 {len(image_annotations)}개 이미지에 대해 그룹화했습니다.")
-
+    random.seed(42)
     image_names = list(image_annotations.keys())
     random.shuffle(image_names)
 
@@ -156,10 +156,10 @@ def copy_images_from_jsons(json_dir, source_images_dir, output_images_dir, image
 
 def coco2yolo(json_path, output_dir, label_change_dict, train=True):
     if train:
-        json_path = os.path.join(json_path, 'train', 'train_pseudo.json')
+        json_path = os.path.join(json_path, 'train', 'train.json')
         output_dir = os.path.join(output_dir, 'train')
     else:
-        json_path = os.path.join(json_path, 'val', 'valid_pseudo.json')
+        json_path = os.path.join(json_path, 'val', 'valid.json')
         output_dir = os.path.join(output_dir, 'val')
 
 
@@ -248,6 +248,67 @@ def create_yolo_yaml(path, train_dir, val_dir, class_names, output_path='dataset
         print(f"YAML 파일 생성 중 오류가 발생했습니다: {e}")
 
 
+
+def coco2yolo_pseudo(json_path, output_dir, label_change_dict, train=True):
+    if train:
+        json_path = os.path.join(json_path, 'train', 'train_pseudo.json')
+        output_dir = os.path.join(output_dir, 'train')
+    else:
+        json_path = os.path.join(json_path, 'val', 'valid_pseudo.json')
+        output_dir = os.path.join(output_dir, 'val')
+
+
+    # 출력 디렉터리 생성
+    os.makedirs(output_dir, exist_ok=True)
+
+    # COCO 객체 로드
+    # coco = COCO(json_path)
+    with open(json_path, 'r', encoding='utf-8') as f:
+        coco = COCO()
+        coco.dataset = json.load(f)
+        coco.createIndex()
+    # 이미지 ID와 파일명 매핑
+    image_ids = coco.getImgIds()
+
+    print(f"총 {len(image_ids)}개의 이미지를 변환합니다.")
+    print(json_path)
+    # 각 이미지를 순회하며 YOLO 파일 생성
+    for img_id in image_ids:
+        img_info = coco.loadImgs(img_id)[0]
+        img_width = img_info['width']
+        img_height = img_info['height']
+        file_name = os.path.splitext(img_info['file_name'])[0] + '.txt'
+        output_path = os.path.join(output_dir, file_name)
+
+        # 이미지에 해당하는 모든 어노테이션 정보 가져오기
+        annotation_ids = coco.getAnnIds(imgIds=img_id)
+        annotations = coco.loadAnns(annotation_ids)
+
+        yolo_lines = []
+        for anno in annotations:
+            category_id = anno['category_id']
+            # print(category_id)
+            label = label_change_dict[str(category_id)]
+            bbox = anno['bbox']
+            # print(bbox)
+            if not bbox:
+                continue
+            # YOLO 좌표로 변환 (정규화된 중심점과 너비/높이)
+            x_center = (bbox[0] + bbox[2] / 2) / img_width
+            y_center = (bbox[1] + bbox[3] / 2) / img_height
+            yolo_width = bbox[2] / img_width
+            yolo_height = bbox[3] / img_height
+
+            # YOLO 포맷 문자열 생성
+            yolo_string = f"{label} {x_center} {y_center} {yolo_width} {yolo_height}"
+            yolo_lines.append(yolo_string)
+
+        # 한 이미지의 모든 어노테이션 정보를 한 번에 파일에 씁니다.
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(yolo_lines))
+
+    print(f"변환 완료. YOLO 어노테이션 파일이 '{output_dir}'에 저장되었습니다.")
+
 # PyYAML 라이브러리가 설치되어 있지 않다면 아래 명령어를 실행하세요.
 # pip install PyYAML
 
@@ -300,30 +361,78 @@ class Args:
     train_images_relative_path = 'images/train'
     valid_images_relative_path = 'images/val'
     output_yaml_path = './data/my_dataset_config.yaml'
-    class_mapping_json_path = './data/labels/train/train_pseudo.json'
+    class_mapping_json_path = './data/labels/train/train.json'
+    output_yaml_path_pseudo = './data/my_dataset_config_pseudo.yaml'
+
 
 if __name__ == "__main__":
+    random.seed(42)
 
 
     args = Args()
     #
     #
-    # group_and_split_annotations(annotations_dir=args.source_json_dir,output_dir=args.output_json_dir, split_ratio=0.8)
-    # copy_images_from_jsons(json_dir=args.output_json_dir, source_images_dir=args.source_images_dir, output_images_dir= args.output_images_dir, image_name_key= 'file_name')
+    if not os.path.exists('./data/images'):
+        group_and_split_annotations(annotations_dir=args.source_json_dir,output_dir=args.output_json_dir, split_ratio=0.8)
+        copy_images_from_jsons(json_dir=args.output_json_dir, source_images_dir=args.source_images_dir, output_images_dir= args.output_images_dir, image_name_key= 'file_name')
+    pseudo_json_path = './data/labels/train/train_pseudo.json'
+
+    # id2label, label2id, label2name = create_class_mapping(input_json_path=args.class_mapping_json_path,
+    #                                                       output_json_path=args.dataset_root_path)
+    # coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label)
+    # coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label, train=False)
+    #
+    # # train_json_path = './data/labels/train/train.json'
+    # # class_ids = get_class_ids(train_json_path)
+    # names_list = list(label2name.values())
+    # create_yolo_yaml(
+    #     path=args.dataset_root_path,
+    #     train_dir=args.train_images_relative_path,
+    #     val_dir=args.valid_images_relative_path,
+    #     class_names=names_list,
+    #     output_path=args.output_yaml_path
+    # )
+
+    if not os.path.exists(pseudo_json_path):
+        print('pseudo_label이 존재하지 않습니다.')
+        id2label, label2id, label2name = create_class_mapping(input_json_path=args.class_mapping_json_path, output_json_path=args.dataset_root_path)
+        coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label)
+        coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label, train=False)
 
 
-    id2label, label2id, label2name = create_class_mapping(input_json_path=args.class_mapping_json_path, output_json_path=args.dataset_root_path)
-    coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label)
-    coco2yolo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label, train=False)
+        # train_json_path = './data/labels/train/train.json'
+        # class_ids = get_class_ids(train_json_path)
+        names_list = list(label2name.values())
+        create_yolo_yaml(
+            path=args.dataset_root_path,
+            train_dir=args.train_images_relative_path,
+            val_dir=args.valid_images_relative_path,
+            class_names=names_list,
+            output_path=args.output_yaml_path
+        )
 
 
-    train_json_path = './data/labels/train/train.json'
-    # class_ids = get_class_ids(train_json_path)
-    names_list = list(label2name.values())
-    create_yolo_yaml(
-        path=args.dataset_root_path,
-        train_dir=args.train_images_relative_path,
-        val_dir=args.valid_images_relative_path,
-        class_names=names_list,
-        output_path=args.output_yaml_path
-    )
+    ## yolo pseudo label 데이터 만들기
+    else:
+        print('pseudo_label이 존재합니다.')
+        # id2label, label2id, label2name = create_class_mapping(input_json_path=pseudo_json_path,
+        #                                                       output_json_path=args.dataset_root_path)
+        with open ('./data/id2label.json', 'r', encoding='utf-8') as f:
+            id2label = json.load(f)
+        with open('./data/label2name.json', 'r', encoding='utf-8') as f:
+            label2name = json.load(f)
+
+        coco2yolo_pseudo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label)
+        coco2yolo_pseudo(json_path=args.output_json_dir, output_dir=args.output_json_dir, label_change_dict=id2label, train=False)
+
+        # class_ids = get_class_ids(train_json_path)
+
+
+        names_list = list(label2name.values())
+        create_yolo_yaml(
+            path=args.dataset_root_path,
+            train_dir=args.train_images_relative_path,
+            val_dir=args.valid_images_relative_path,
+            class_names=names_list,
+            output_path=args.output_yaml_path_pseudo
+        )

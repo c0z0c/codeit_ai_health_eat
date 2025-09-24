@@ -99,6 +99,11 @@ class AnalysisWorker(QThread):
             self.error.emit(str(e))
 
 class PillAnalysisUI(QMainWindow):
+    """알약 분석기 UI
+
+    Args:
+        QMainWindow (_type_): _description_
+    """
     def __init__(self):
         super().__init__()
         self.engine = None
@@ -108,6 +113,9 @@ class PillAnalysisUI(QMainWindow):
         self.init_engine()
     
     def init_ui(self):
+        """
+        UI 초기화
+        """
         self.setWindowTitle("알약 분석기")
         self.setGeometry(100, 100, 1200, 800)
         
@@ -349,6 +357,7 @@ class PillAnalysisUI(QMainWindow):
             self.image_label.setPixmap(fallback)
 
     def resizeEvent(self, event):
+        """창 크기 변화에 맞춰 이미지 갱신"""
         super().resizeEvent(event)
         # 창/레이아웃 크기 변화에 맞춰 이미지 갱신
         self.update_main_image()
@@ -493,6 +502,13 @@ def download_model_files(url, target):
         # DLOG.log(LV.TRACE, f"다운로드 시작: {filename}")
         
         def progress_hook(block_num, block_size, total_size):
+            """다운로드 진행 상황을 표시하는 후크 함수
+
+            Args:
+              - block_num (int): 현재 블록 번호
+              - block_size (int): 블록 크기(바이트)
+              - total_size (int): 전체 파일 크기(바이트)
+            """
             if total_size > 0:
                 downloaded = block_num * block_size
                 percent = min(100, (downloaded * 100) // total_size)

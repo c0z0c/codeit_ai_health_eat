@@ -8,8 +8,14 @@
 
 1. **데이터 다운로드**: `download_data.py`
 2. **데이터 전처리**: `preprocessing.py`
-3. **모델 학습**: `train.py`
-4. **모델 추론**: `test.py`
+3. **모델 학습**: `train.py` - 이후 모델 선택
+4. **모델 추론**: `test.py` - 이후 모델 선택
+5. **pseudo_label 생성**: `pseudo_labeling.py`
+6. **pseudo_label yolo 데이터 생성** : `preprocessing.py`
+7. **모델 재학습**: `train.py`
+8. **모델 추론**: `test.py`
+9. **5-8 n회 반복**
+10. **csv형태로 변환**: `json2csv.py`
 
 
 ## 📚 파일별 상세 설명
@@ -107,30 +113,31 @@
   - 클래스 매핑 파일 생성
   - 이미지 검증 및 표시
 
+#### 13.  `pseudo_labeling.py`
+- **목적**: pseudo_label 생성
+- **주요 기능**:
+  - 학습 모델 로딩
+  - pseudo_label 생성
+  - train_pseudo.json/ valid_pseudo.json 파일 생성
+
+
 ### 🔧 기타 파일들
 
-#### 13. `ai_hub_image.py`
+#### 14. `ai_hub_image.py`
 - **목적**: AI Hub 데이터 전처리 전용 스크립트
 - **기능**: 원본 데이터의 ID 매핑 및 정리
 
-#### 14. `data_check.py`
-- **목적**: 데이터 무결성 검사
-- **기능**: 어노테이션 파일의 오류 검출
 
 #### 15. `json2csv.py`
 - **목적**: 예측 결과를 CSV 형식으로 변환
 - **기능**: 제출용 CSV 파일 생성
-
-#### 16. `test_check.py`
-- **목적**: 테스트 결과 시각화 확인
-- **기능**: 예측 결과의 바운딩 박스 시각화
 
 
 ## 🎯 사용법
 
 ### 1. 데이터 준비
 ```bash
-python download_data.py
+python download_data.py   # kaggle 연동 및 kaggle competition 참가 필요
 python preprocessing.py
 ```
 
@@ -159,13 +166,13 @@ python test.py
 ## 📁 결과 파일
 
 ### 학습 결과
-- `checkpoints/`: Faster-RCNN 모델 체크포인트
-- `runs/`: YOLO 학습 로그 및 결과
+- `object-detection/FasterRCNN_resnet101`: FasterRCNN_resnet101 학습 로그 및 결과
+- `object-detection/yolo`: YOLO 학습 로그 및 결과
 - 학습 곡선 그래프 및 성능 분석 차트
 
 ### 추론 결과  
-- `predictions/`: JSON 형식 예측 결과
-- `visualizations/`: 바운딩 박스가 그려진 이미지
+- `object-detection/model_name/train*/test_predictions`: JSON 형식 예측 결과
+- `object-detection/model_name/train*/test_visulizations`: 바운딩 박스가 그려진 이미지
 - CSV 형식 제출 파일
 
 ## ⚙️ 설정 옵션
